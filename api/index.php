@@ -1,1 +1,3 @@
-<h1>API is working</h1>
+<?php
+echo "StockCrop API is officially LIVE!";
+?>
