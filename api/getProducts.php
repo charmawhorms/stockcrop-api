@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 
 header("Content-Type: application/json");
 
-include '../databaseConn.php';
+include(__DIR__ . "/../databaseConn.php");
 
 if (!$conn) {
     echo json_encode(["error" => "Database connection failed"]);
@@ -60,4 +60,5 @@ while ($row = mysqli_fetch_assoc($result)) {
 }
 
 echo json_encode($products);
+
 
