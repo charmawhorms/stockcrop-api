@@ -1,5 +1,5 @@
 <?php
-require "databaseConn.php";
+require __DIR__ . "/databaseConn.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -40,3 +40,4 @@ echo json_encode([
     "success" => false,
     "message" => "Invalid credentials"
 ]);
+
