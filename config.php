@@ -1,8 +1,8 @@
 <?php
-    $host = "bkr68s67yybaqej..."; // Your Clever Cloud Host
-    $user = "uejfcvkdxo0isxp..."; // Your Clever Cloud User
-    $pass = "your_password";      // Your Clever Cloud Password
-    $db   = "bkr68s67yybaqej..."; // Your Clever Cloud DB Name
+    $servername = "bkr68s67yybaqejy9ptf-mysql.services.clever-cloud.com"; //Clever Cloud Host
+    $username = "uuejfcvkdxo0isxpe"; //Clever Cloud User
+    $password = "bP4O5Zt83DMSaJKVXDXP";      // Your Clever Cloud Password
+    $database   = "bkr68s67yybaqejy9ptf"; // Your Clever Cloud DB Name
     $port = 3306; 
 
     // Establishing the connection
