@@ -4,7 +4,13 @@ error_reporting(E_ALL);
 
 header("Content-Type: application/json");
 
-include '../config.php';
+// FIX 1: Point to your database connection file in the same folder
+include(__DIR__ . "/databaseConn.php");
+
+if (!$conn) {
+    echo json_encode(["error" => "Database connection failed"]);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["error" => "Invalid request method"]);
@@ -38,7 +44,7 @@ $unitOfSale    = trim($_POST['unitOfSale']);
 $stockQuantity = intval($_POST['stockQuantity']);
 $isAvailable   = 1;
 
-// Image upload
+// Image upload logic
 $imagePath = "assets/default_product.png";
 
 if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
@@ -49,7 +55,10 @@ if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
         exit;
     }
 
-    $uploadDir = "../uploads/products/";
+    // FIX 2: Use an absolute path for the upload directory
+    // On Render, we'll put uploads in /var/www/html/uploads/products/
+    $uploadDir = $_SERVER['DOCUMENT_ROOT'] . "/uploads/products/";
+    
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
@@ -62,10 +71,11 @@ if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
         exit;
     }
 
+    // This is the path we store in the DB for getProducts.php to use
     $imagePath = "uploads/products/" . $fileName;
 }
 
-// Insert product (MATCHES TABLE)
+// Insert product
 $sql = "
     INSERT INTO products
     (farmerId, categoryId, productName, description, price, unitOfSale, stockQuantity, imagePath, isAvailable)
@@ -96,8 +106,9 @@ mysqli_stmt_bind_param(
 if (mysqli_stmt_execute($stmt)) {
     echo json_encode([
         "success" => true,
-        "productId" => mysqli_insert_id($conn)
+        "productId" => mysqli_insert_id($conn),
+        "message" => "Product added successfully"
     ]);
 } else {
-    echo json_encode(["error" => "Failed to add product"]);
+    echo json_encode(["error" => "Failed to add product: " . mysqli_stmt_error($stmt)]);
 }
