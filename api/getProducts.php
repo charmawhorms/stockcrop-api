@@ -52,7 +52,7 @@ while ($row = mysqli_fetch_assoc($result)) {
         "price" => (float)$row["price"],
         "unitOfSale" => $row["unitOfSale"],
         "stockQuantity" => (int)$row["stockQuantity"],
-        "imageUrl" => $row["imagePath"] ?: "assets/default_product.png",
+        "imageUrl" => "https://stockcrop-api.onrender.com/assets/" . ($row["imagePath"] ?: "default_product.png"),
         "farmerName" => trim($row["firstName"] . " " . $row["lastName"]),
         "parish" => $row["parish"],
         "category" => $row["categoryName"]
@@ -60,6 +60,7 @@ while ($row = mysqli_fetch_assoc($result)) {
 }
 
 echo json_encode($products);
+
 
 
 
