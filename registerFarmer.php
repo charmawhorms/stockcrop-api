@@ -115,7 +115,8 @@
         }
         $userId = mysqli_insert_id($conn);
 
-        $verificationStatus = ($farmerType === "verified") ? "pending" : "guest";
+        // RADA farmers are instantly verified; Guests remain as guest status
+        $verificationStatus = ($farmerType === "verified") ? "verified" : "guest";
         if ($farmerType === "guest") $radaIdNumber = null;
 
         // Insert farmer

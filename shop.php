@@ -6,10 +6,11 @@ include 'config.php';
 $searchQuery = isset($_GET['search']) ? trim($_GET['search']) : '';
 $categoryFilter = isset($_GET['category']) ? intval($_GET['category']) : 0;
 $parishFilter = isset($_GET['parish']) ? trim($_GET['parish']) : '';
+$verifiedFilter = isset($_GET['verifiedOnly']) ? true : false;
 
 // --- 2. Build products query dynamically ---
 $products = [];
-$sql = "SELECT p.*, f.firstName, f.lastName, f.parish, c.categoryName
+$sql = "SELECT p.*, f.firstName, f.lastName, f.parish, f.verification_status, c.categoryName
         FROM products p
         LEFT JOIN farmers f ON p.farmerId = f.id
         LEFT JOIN categories c ON p.categoryId = c.id
@@ -39,7 +40,11 @@ if (!empty($parishFilter)) {
     $types .= 's';
 }
 
-$sql .= " ORDER BY p.id DESC";
+if ($verifiedFilter) {
+    $sql .= " AND f.verification_status = 'verified'";
+}
+
+$sql .= " ORDER BY f.verification_status DESC, p.id DESC";
 
 $stmt = mysqli_prepare($conn, $sql);
 if (!$stmt) {
@@ -65,7 +70,8 @@ while ($row = mysqli_fetch_assoc($result)) {
         'imagePath' => htmlspecialchars($row['imagePath'] ?? 'assets/default_product.png'),
         'farmerName' => htmlspecialchars($row['firstName'] . ' ' . $row['lastName']),
         'parish' => htmlspecialchars($row['parish'] ?? 'N/A'),
-        'categoryName' => htmlspecialchars($row['categoryName'] ?? 'General')
+        'categoryName' => htmlspecialchars($row['categoryName'] ?? 'General'),
+        'verification_status' => $row['verification_status']
     ];
 }
 
@@ -187,6 +193,14 @@ mysqli_stmt_close($stmt);
                                 ?>
                             </select>
 
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="verifiedOnly" id="verifiedOnly" value="1" <?= isset($_GET['verifiedOnly']) ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold d-flex align-items-center" for="verifiedOnly">
+                                    <span class="material-symbols-outlined text-primary me-1" style="font-size: 18px;">verified</span>
+                                    RADA Verified Only
+                                </label>
+                            </div>
+
                             <button type="submit" class="btn btn-success w-100">Search</button>
                         </form>
                     </div>
@@ -203,7 +217,12 @@ mysqli_stmt_close($stmt);
                                 <h6 class="card-title mb-1"><?= $product['productName'] ?></h6>
                                 <p class="text-success fw-bold mb-1">$<?= number_format($product['price'], 2) ?> / <?= $product['unitOfSale'] ?></p>
                                 <small class="text-muted d-block mb-2">
-                                    <?= $product['categoryName'] ?> | <?= $product['parish'] ?></p>
+                                    <?= $product['categoryName'] ?> | <?= $product['parish'] ?>
+                                    <?php if ($product['verification_status'] === 'verified'): ?>
+                                        <span class="material-symbols-outlined text-primary align-middle ms-1" 
+                                            style="font-size: 16px;" 
+                                            title="RADA Verified Farmer">verified</span>
+                                    <?php endif; ?>
                                 </small>
                             </div>
            

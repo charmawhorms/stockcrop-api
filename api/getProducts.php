@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 header("Content-Type: application/json");
 
 // Use __DIR__ to ensure it finds the config file in the same folder
-include(__DIR__ . "/databaseConn.php");
+require_once(__DIR__ . "/databaseConn.php");
 
 if (!$conn) {
     echo json_encode(["error" => "Database connection failed"]);
@@ -16,6 +16,7 @@ if (!$conn) {
 // Example: getProducts.php?categoryId=2  OR getProducts.php?search=tomato
 $categoryId = $_GET['categoryId'] ?? null;
 $search = $_GET['search'] ?? null;
+$verifiedOnly = $_GET['verifiedOnly'] ?? null;
 
 // 2. Base SQL Query
 $sql = "
@@ -30,6 +31,7 @@ $sql = "
         f.firstName,
         f.lastName,
         f.parish,
+        f.verification_status,
         c.categoryName
     FROM products p
     LEFT JOIN farmers f ON p.farmerId = f.id
@@ -48,8 +50,12 @@ if ($search) {
     $sql .= " AND (p.productName LIKE '%$safeSearch%' OR p.description LIKE '%$safeSearch%')";
 }
 
-// 4. Final Sorting
-$sql .= " ORDER BY p.id DESC";
+if ($verifiedOnly === 'true' || $verifiedOnly === '1') {
+    $sql .= " AND f.verification_status = 'verified'";
+}
+
+// 4. Final Sorting: Verified farmers first, then newest products
+$sql .= " ORDER BY f.verification_status DESC, p.id DESC";
 
 $result = mysqli_query($conn, $sql);
 
@@ -72,7 +78,8 @@ while ($row = mysqli_fetch_assoc($result)) {
         "imageUrl" => "https://stockcrop-api.onrender.com/assets/" . ($row["imagePath"] ?: "default_product.png"),
         "farmerName" => trim($row["firstName"] . " " . $row["lastName"]),
         "parish" => $row["parish"],
-        "category" => $row["categoryName"]
+        "category" => $row["categoryName"],
+        "isVerified" => ($row["verification_status"] === 'verified')
     ];
 }
 

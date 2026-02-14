@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 header("Content-Type: application/json");
 
 // FIX 1: Point to your database connection file in the same folder
-include(__DIR__ . "/databaseConn.php");
+require_once(__DIR__ . "/databaseConn.php");
 
 if (!$conn) {
     echo json_encode(["error" => "Database connection failed"]);

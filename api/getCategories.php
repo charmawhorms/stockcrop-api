@@ -1,6 +1,6 @@
 <?php
 header("Content-Type: application/json");
-include(__DIR__ . "/databaseConn.php");
+require_once(__DIR__ . "/databaseConn.php");
 
 if (!$conn) {
     echo json_encode(["error" => "Database connection failed"]);

@@ -11,20 +11,25 @@
     }
 
     // Fetch product info
-    $sql = "
-        SELECT p.*, f.firstName, f.lastName, f.parish, c.categoryName
-        FROM products p
-        JOIN farmers f ON p.farmerId = f.id
-        JOIN categories c ON p.categoryId = c.id
-        WHERE p.id = $productId
-        LIMIT 1
-    ";
-    $result = mysqli_query($conn, $sql);
+   // Safer way to fetch product info
+$stmt = $conn->prepare("
+    SELECT p.*, f.firstName, f.lastName, f.parish, f.verification_status, c.categoryName 
+    FROM products p 
+    JOIN farmers f ON p.farmerId = f.id 
+    JOIN categories c ON p.categoryId = c.id 
+    WHERE p.id = ?
+");
+$stmt->bind_param("i", $productId);
+$stmt->execute();
+$result = $stmt->get_result();
+$product = $result->fetch_assoc();
+
+    /*$result = mysqli_query($conn, $sql);
     if (!$result || mysqli_num_rows($result) === 0) {
         echo "<p class='text-center mt-5'>Product not found.</p>";
         exit;
     }
-    $product = mysqli_fetch_assoc($result);
+    $product = mysqli_fetch_assoc($result);*/
 
     // Fetch related products
     $relatedQuery = "
@@ -116,11 +121,23 @@
                     <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">Product Description</h5>
                     <p class="text-muted description-text"><?= nl2br(htmlspecialchars($product['description'])) ?></p>
 
-                    <div class="card p-3 mt-4 border-success">
-                        <p class="mb-1 fw-bold text-success"><span class="material-symbols-outlined me-1 small align-middle">verified_user</span> Sold By Local Farmer</p>
-                        <p class="mb-1"><span class="fw-semibold">Farmer:</span> <?= htmlspecialchars($product['firstName'] . ' ' . $product['lastName']) ?></p>
-                        <p class="mb-0"><span class="fw-semibold">Location:</span> <?= htmlspecialchars($product['parish']) ?></p>
-                    </div>
+                    <div class="card p-3 mt-4 border-success shadow-sm">
+    <p class="mb-1 fw-bold text-success d-flex align-items-center">
+        <span class="material-symbols-outlined me-1 small">verified_user</span> 
+        Sold By Local Farmer
+    </p>
+    <p class="mb-1 d-flex align-items-center">
+        <span class="fw-semibold me-1">Farmer:</span> 
+        <?= htmlspecialchars($product['firstName'] . ' ' . $product['lastName']) ?>
+        
+        <?php if ($product['verification_status'] === 'verified'): ?>
+            <span class="material-symbols-outlined text-primary ms-1" 
+                  style="font-size: 20px;" 
+                  title="RADA Verified Farmer">verified</span>
+        <?php endif; ?>
+    </p>
+    <p class="mb-0"><span class="fw-semibold">Location:</span> <?= htmlspecialchars($product['parish']) ?></p>
+</div>
                 </div>
             </div>
         </div>
