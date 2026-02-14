@@ -2,8 +2,6 @@
 include 'session.php';
 include 'config.php';
 
-$farmerId = $_SESSION['farmerId'];
-
 redirectIfNotLoggedIn();
 
 if ($_SESSION['roleId'] != 2) {
