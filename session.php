@@ -7,6 +7,7 @@
     // Function to check if a user is logged in
     function isLoggedIn() {
         return isset($_SESSION['id']);
+        return isset($_SESSION['farmerId']);
     }
 
     // Redirects if logged in
