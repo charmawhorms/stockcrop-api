@@ -340,69 +340,55 @@ foreach ($orderStatusData as $row) {
 
     <!-- Quick Actions -->
     <h4 class="mb-4 fw-bold text-dark">Quick Actions</h4>
-    <div class="row g-4 mb-5">
-        <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="card card-dash p-4 text-center">
-                <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color: var(--sc-primary-green);">library_add</span>
-                <h5 class="card-title fw-bold">Add New Product</h5>
-                <p class="card-text text-muted small">Quickly list fresh produce and set prices for market.</p>
-                <a href="addProduct.php" class="btn btn-success mt-2">Add Listing</a>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card card-dash h-100 p-4 text-center">
+                    <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color: var(--sc-primary-green);">library_add</span>
+                    <h5 class="card-title fw-bold">Add New Product</h5>
+                    <p class="card-text text-muted small">Quickly list fresh produce for market.</p>
+                    <a href="addProduct.php" class="btn btn-success mt-auto">Add Listing</a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card card-dash h-100 p-4 text-center">
+                    <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color:#007bff;">storage</span>
+                    <h5 class="card-title fw-bold">Manage Inventory</h5>
+                    <p class="card-text text-muted small">Update stock or edit details.</p>
+                    <a href="viewProducts.php" class="btn btn-outline-success mt-auto">View Products</a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card card-dash h-100 p-4 text-center">
+                    <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color:#ffc107;">track_changes</span>
+                    <h5 class="card-title fw-bold">Process Orders</h5>
+                    <p class="card-text text-muted small">Track deliveries and customer orders.</p>
+                    <a href="viewOrders.php" class="btn btn-outline-success mt-auto">View Orders</a>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 col-sm-12">
+                <div class="card card-dash h-100 p-4 text-center">
+                    <h5 class="fw-bold">Farm QR Code</h5>
+                    <?php
+                        // Live Render URL!
+                        $qrUrl = "https://stockcrop.onrender.com/viewFarmer.php?id=" . $farmerId;
+                    ?>
+                    <img 
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?php echo urlencode($qrUrl); ?>" 
+                        alt="QR Code"
+                        class="mx-auto mb-2 img-fluid"
+                        style="max-width: 120px;"
+                    >
+                    <a href="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=<?php echo urlencode($qrUrl); ?>" 
+                    download="Farm_QR.png" 
+                    class="btn btn-sm btn-link text-success text-decoration-none">
+                    Download QR
+                    </a>
+                </div>
             </div>
         </div>
-
-        <a href="addProduct.php" class="btn btn-success mt-2">Add Listing</a>
-            </div>
-        </div>
-
-        <!-- QR Code Section -->
-<div class="row mb-5">
-    <div class="col-md-6">
-        <div class="card p-4 text-center">
-            <h5>Your Unique Farm QR Code</h5>
-            <p class="text-muted small">
-                Customers can scan this to view your farm profile.
-            </p>
-
-            <?php
-            $qrUrl = "http://localhost/stockcrop/viewFarmer.php?id=" . $farmerId;
-            ?>
-
-            <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=<?php echo urlencode($qrUrl); ?>" 
-                alt="QR Code"
-                class="mb-3"
-            >
-
-            <br>
-
-            <a 
-                href="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=<?php echo urlencode($qrUrl); ?>"
-                download="Farm_QR_<?php echo $farmerId; ?>.png"
-                class="btn btn-success"
-            >
-                Download QR Code
-            </a>
-        </div>
-    </div>
-</div>
-
-        <div class="col-lg-4 col-md-6 col-sm-12">
-            <div class="card card-dash p-4 text-center">
-                <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color:#007bff;">storage</span>
-                <h5 class="card-title fw-bold">Manage Inventory</h5>
-                <p class="card-text text-muted small">Update stock, edit details, or remove products easily.</p>
-                <a href="viewProducts.php" class="btn btn-outline-success mt-2">View Products</a>
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-12 col-sm-12">
-            <div class="card card-dash p-4 text-center">
-                <span class="material-icons-outlined mx-auto mb-3" style="font-size:3rem; color:#ffc107;">track_changes</span>
-                <h5 class="card-title fw-bold">Process Orders</h5>
-                <p class="card-text text-muted small">Track and manage all customer orders and deliveries.</p>
-                <a href="viewOrders.php" class="btn btn-outline-success mt-2">View Orders</a>
-            </div>
-        </div>
-    </div>
 
     <!-- Charts Row -->
     <div class="row g-4 mb-5">
