@@ -56,11 +56,12 @@
             <ul class="navbar-nav mx-auto mb-2 mb-lg-0 d-flex align-items-center gap-lg-3 text-center">
                 <li class="nav-item"><a href="index.php" class="nav-link fw-semibold">Home</a></li>
                 <li class="nav-item"><a href="shop.php" class="nav-link fw-semibold">Marketplace</a></li>
+                <li class="nav-item"><a href="farmersMarket.php" class="nav-link fw-semibold">Farmers' Market</a></li>
                 <li class="nav-item"><a href="about.php" class="nav-link fw-semibold">About Us</a></li>
-                <li class="nav-item"><a href="contact.php" class="nav-link fw-semibold">Contact Us</a></li>
+                <li class="nav-item"><a href="contact.php" class="nav-link fw-semibold">Contact</a></li>
             </ul>
 
-            <form action="shop.php" method="GET" class="d-flex align-items-center bg-light rounded-pill px-3 py-1 mb-2 mb-lg-0 search-bar">
+            <form action="shop.php" method="GET" class="d-flex align-items-center bg-light rounded-pill px-3 py-1 mb-2 mb-lg-0 search-bar ms-lg-3">
                 <span class="material-symbols-outlined text-secondary me-2">search</span>
                 <input type="text" name="search" class="form-control border-0 bg-light" 
                         placeholder="Search for products..." 
@@ -254,6 +255,18 @@ document.addEventListener('DOMContentLoaded', () => {
         0%, 100% { transform: translateY(0); }
         50% { transform: translateY(-5px); }
     }
+
+    .search-bar {
+        max-width: 220px; 
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .search-bar .form-control:focus {
+        box-shadow: none;
+        background-color: transparent;
+    }
+
     .cart-bounce {
         animation: bounce 0.4s ease;
     }
