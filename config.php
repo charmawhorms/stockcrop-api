@@ -1,14 +1,14 @@
 <?php
-    /*$servername = "bkr68s67yybaqejy9ptf-mysql.services.clever-cloud.com";
+    $servername = "bkr68s67yybaqejy9ptf-mysql.services.clever-cloud.com";
     $username = "uejfcvkdxo0isxpe";
     $password = "bP4O5Zt83DMSaJKVXDXP";
     $database   = "bkr68s67yybaqejy9ptf";
-    $port = 3306; */
+    $port = 3306; 
 
-    $servername = "localhost";
+    /*$servername = "localhost";
     $username = "root";
     $password = "1234";
-    $database   = "stockcrop";
+    $database   = "stockcrop";*/
 
     // Establishing the connection
     $conn = mysqli_connect($servername, $username, $password, $database);
