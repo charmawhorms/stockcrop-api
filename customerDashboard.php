@@ -254,6 +254,11 @@ $latestOrder = $orders[0]['orderDate'] ?? null;
                 <span class="material-symbols-outlined align-middle me-1" style="font-size:20px;">favorite</span> Wishlist
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link dash-tab" data-bs-toggle="tab" data-bs-target="#bids">
+                <span class="material-symbols-outlined align-middle me-1" style="font-size:20px;">gavel</span> Bids
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -357,8 +362,125 @@ $latestOrder = $orders[0]['orderDate'] ?? null;
                 <a href="shop.php" class="alert-link fw-semibold">Browse Products</a>
             </div>
         </div>
+
+        <!-- Bids -->
+        <div class="tab-pane fade" id="bids">
+            <h3 class="mb-3 fw-bold">My Bids</h3>
+
+            <?php
+            // Fetch all bids for this customer
+            $stmt = mysqli_prepare($conn, "
+                SELECT 
+                    b.id AS bidId,
+                    b.quantity,
+                    b.bidAmount,
+                    b.counterAmount,
+                    b.bidStatus,
+                    b.bidTime,
+                    b.expiresAt,
+                    p.productName,
+                    f.firstName AS farmerFirst,
+                    f.lastName AS farmerLast
+                FROM bids b
+                JOIN products p ON b.productId = p.id
+                JOIN farmers f ON p.farmerId = f.id
+                WHERE b.userId = ?
+                ORDER BY b.bidTime DESC
+            ");
+            mysqli_stmt_bind_param($stmt, "i", $userId);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            $bids = mysqli_fetch_all($result, MYSQLI_ASSOC);
+            mysqli_stmt_close($stmt);
+            ?>
+
+            <?php if(empty($bids)): ?>
+                <div class="alert alert-info text-center bg-white border-0 shadow-sm">
+                    <span class="material-symbols-outlined display-6 d-block mb-2 text-primary">list_alt</span>
+                    <p class="mb-0">You have no active bids.</p>
+                    <a href="shop.php" class="alert-link fw-semibold">Browse products to place a bid.</a>
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle bg-white shadow-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th>Farmer</th>
+                                <th>Your Offer</th>
+                                <th>Counter Offer</th>
+                                <th>Qty</th>
+                                <th>Status</th>
+                                <th>Expires In</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($bids as $bid): 
+                                $expiresAt = $bid['expiresAt'];
+                            $now = date('Y-m-d H:i:s');
+
+                            $isCountered = $bid['bidStatus'] === 'Countered';
+                            $isExpired = false;
+                            $timeRemaining = 0;
+
+                            if ($expiresAt) {
+                                $timeRemaining = strtotime($expiresAt) - strtotime($now);
+                                if ($timeRemaining <= 0) {
+                                    $isExpired = true;
+                                    $timeRemaining = 0;
+                                }
+                            } else {
+                                // If expiresAt is null, treat bid as not countered or expired
+                                $isCountered = false;
+                            }
+                                $farmerName = trim($bid['farmerFirst'].' '.$bid['farmerLast']);
+                            ?>
+                            <tr>
+                                <td><?= htmlspecialchars($bid['productName']) ?></td>
+                                <td><?= htmlspecialchars($farmerName) ?></td>
+                                <td>$<?= number_format($bid['bidAmount'],2) ?></td>
+                                <td><?= $bid['counterAmount'] ? '$'.number_format($bid['counterAmount'],2) : '-' ?></td>
+                                <td><?= $bid['quantity'] ?></td>
+                                <td>
+                                    <span class="badge bg-<?= 
+                                        $isExpired ? 'secondary' : (
+                                            $bid['bidStatus'] === 'Pending' ? 'warning text-dark' :
+                                            ($bid['bidStatus'] === 'Accepted' ? 'success' :
+                                            ($bid['bidStatus'] === 'Rejected' ? 'danger' : 'info'))
+                                        )
+                                    ?>">
+                                        <?= $isExpired ? 'Expired' : $bid['bidStatus'] ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if($isCountered && !$isExpired): ?>
+                                        <span class="countdown" data-seconds="<?= $timeRemaining ?>"></span>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if($isCountered && !$isExpired): ?>
+                                        <form method="POST" action="handleCounterAccept.php">
+                                            <input type="hidden" name="bidId" value="<?= $bid['bidId'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-success">Accept & Add to Cart</button>
+                                        </form>
+                                    <?php else: ?>
+                                        <span class="text-muted">—</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
+
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -405,5 +527,27 @@ setInterval(() => {
 }, 5000);
 </script>
 
+<script>
+// Countdown timers
+function startCountdowns() {
+    document.querySelectorAll('.countdown').forEach(span => {
+        let seconds = parseInt(span.dataset.seconds);
+        function updateTimer() {
+            if(seconds <= 0){
+                span.textContent = 'Expired';
+                return;
+            }
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            span.textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            seconds--;
+            setTimeout(updateTimer, 1000);
+        }
+        updateTimer();
+    });
+}
+document.addEventListener('DOMContentLoaded', startCountdowns);
+</script>
 </body>
 </html>

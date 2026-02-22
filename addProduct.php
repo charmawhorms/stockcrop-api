@@ -35,48 +35,68 @@ while ($row = mysqli_fetch_assoc($catQuery)) {
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
-    $productName = htmlspecialchars(trim($_POST["productName"]));
-    $description = htmlspecialchars(trim($_POST["description"]));
-    $categoryId = intval($_POST["category"]);
-    $price = floatval($_POST["price"]);
-    $unitOfSale = htmlspecialchars(trim($_POST["unitOfSale"]));
+    $productName   = htmlspecialchars(trim($_POST["productName"]));
+    $description   = htmlspecialchars(trim($_POST["description"]));
+    $categoryId    = intval($_POST["category"]);
+    $price         = floatval($_POST["price"]);
+    $unitOfSale    = htmlspecialchars(trim($_POST["unitOfSale"]));
     $stockQuantity = intval($_POST["stockQuantity"]);
-    $isAvailable = isset($_POST["isAvailable"]) ? 1 : 0;
+    $isAvailable   = isset($_POST["isAvailable"]) ? 1 : 0;
 
-    // Handle image upload
-    $imagePath = null;
-    if (isset($_FILES["image"]) && $_FILES["image"]["error"] == 0) {
-        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
-        if (in_array($_FILES["image"]["type"], $allowedTypes)) {
-            $ext = pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION);
-            if (!is_dir('uploads')) mkdir('uploads', 0777, true);
-            $imagePath = "uploads/" . uniqid() . '.' . $ext;
-            move_uploaded_file($_FILES["image"]["tmp_name"], $imagePath);
-        } else {
-            $errorMessage = "Only JPG, PNG, and GIF files are allowed.";
+    // NEW: Bidding fields
+    $allowBidding = isset($_POST['allowBidding']) ? intval($_POST['allowBidding']) : 0;
+    $minPrice     = ($allowBidding === 1 && !empty($_POST['minPrice'])) ? floatval($_POST['minPrice']) : null;
+
+    // Validate min price if bidding is enabled
+    if ($allowBidding === 1 && ($minPrice === null || $minPrice <= 0)) {
+        $errorMessage = "Minimum price is required when bidding is enabled.";
+    } else {
+        // Handle image upload
+        $imagePath = null;
+        if (isset($_FILES["image"]) && $_FILES["image"]["error"] == 0) {
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+            if (in_array($_FILES["image"]["type"], $allowedTypes)) {
+                $ext = pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION);
+                if (!is_dir('uploads')) mkdir('uploads', 0777, true);
+                $imagePath = "uploads/" . uniqid() . '.' . $ext;
+                move_uploaded_file($_FILES["image"]["tmp_name"], $imagePath);
+            } else {
+                $errorMessage = "Only JPG, PNG, and GIF files are allowed.";
+            }
         }
-    }
 
-    if ($errorMessage == '') {
-        $stmt = mysqli_prepare($conn, "INSERT INTO products (farmerId, categoryId, productName, description, price, unitOfSale, stockQuantity, imagePath, isAvailable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param(
-            $stmt,
-            "iissdsisi",
-            $farmerId,
-            $categoryId,
-            $productName,
-            $description,
-            $price,
-            $unitOfSale,
-            $stockQuantity,
-            $imagePath,
-            $isAvailable
-        );
+        if ($errorMessage == '') {
+            // Default values
+if ($imagePath === null) $imagePath = '';
+if ($minPrice === null) $minPrice = 0;
 
-        if (mysqli_stmt_execute($stmt)) {
-            $successMessage = "Product added successfully!";
-        } else {
-            $errorMessage = "Error adding product: " . mysqli_error($conn);
+$stmt = mysqli_prepare($conn, "
+    INSERT INTO products
+    (farmerId, categoryId, productName, description, price, unitOfSale, stockQuantity, imagePath, isAvailable, allowBidding, minPrice)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+
+mysqli_stmt_bind_param(
+    $stmt,
+    "iissdsisiid", // 11 types
+    $farmerId,
+    $categoryId,
+    $productName,
+    $description,
+    $price,
+    $unitOfSale,
+    $stockQuantity,
+    $imagePath,
+    $isAvailable,
+    $allowBidding,
+    $minPrice
+);
+
+if (mysqli_stmt_execute($stmt)) {
+    $successMessage = "Product added successfully!";
+} else {
+    $errorMessage = "Error adding product: " . mysqli_error($conn);
+}
         }
     }
 }
@@ -93,38 +113,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
 <link rel="stylesheet" href="styles.css">
 
 <style>
+.content {
+    margin-left: 250px;
+    padding: 20px 30px;
+    padding-top: 80px;
+    min-height: 100vh;
+}
+
+@media (max-width: 992px) {
     .content {
-        margin-left: 250px;
-        padding: 20px 30px;
-        padding-top: 80px;
-        min-height: 100vh;
+        margin-left: 0;
+        padding: 20px;
     }
-
-    @media (max-width: 992px) {
-        .content {
-            margin-left: 0;
-            padding: 20px;
-        }
-        .product-image {
-            width: 60px;
-            height: 60px;
-        }
-        td.description-cell {
-            max-width: 100px;
-        }
-        
-        .sidebar {
-            position: relative;
-            width: 100%;
-        }
-        .content {
-            margin-left: 0;
-            padding-top: 20px; /* reduce padding for mobile */
-            padding-left: 10px;
-            padding-right: 10px;
-        }
+    .product-image {
+        width: 60px;
+        height: 60px;
     }
-
+    td.description-cell {
+        max-width: 100px;
+    }
+    
+    .sidebar {
+        position: relative;
+        width: 100%;
+    }
+    .content {
+        margin-left: 0;
+        padding-top: 20px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+}
 </style>
 </head>
 <body>
@@ -168,6 +187,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
         <div class="mb-3">
             <label for="price" class="form-label">Price (JMD):</label>
             <input type="number" step="0.01" id="price" name="price" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Accept Bid</label>
+            <select name="allowBidding" id="allowBidding" class="form-select">
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+            </select>
+        </div>
+
+        <div class="mb-3" id="minPriceWrapper" style="display: none;">
+            <label class="form-label">Minimum Price (For Bidding)</label>
+            <input type="number" step="0.01" name="minPrice" class="form-control">
+            <small class="text-muted">Required only if Accept Bid is set to Yes</small>
         </div>
 
         <div class="mb-3">
@@ -232,6 +265,17 @@ document.getElementById('generateDescriptionBtn').addEventListener('click', func
         alert('Fetch error: The AJAX request failed (check console/network tab).');
         console.error(err);
     });
+});
+
+// Show/hide minPrice field based on allowBidding
+const allowBiddingSelect = document.getElementById('allowBidding');
+const minPriceWrapper = document.getElementById('minPriceWrapper');
+allowBiddingSelect.addEventListener('change', () => {
+    if (allowBiddingSelect.value === '1') {
+        minPriceWrapper.style.display = 'block';
+    } else {
+        minPriceWrapper.style.display = 'none';
+    }
 });
 </script>
 
