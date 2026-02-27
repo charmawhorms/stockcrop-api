@@ -4,7 +4,7 @@ include 'config.php';
 include 'session.php';
 redirectIfNotLoggedIn();
 
-// Only farmers can access this page
+// Only farmers
 if ($_SESSION['roleId'] != 2) {
     header("Location: login.php");
     exit();
@@ -51,6 +51,7 @@ $catResult = mysqli_stmt_get_result($catStmt);
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
+
     $productName = htmlspecialchars(trim($_POST['productName']));
     $description = htmlspecialchars(trim($_POST['description']));
     $price = floatval($_POST['price']);
@@ -59,29 +60,61 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $categoryId = intval($_POST['categoryId']);
     $isAvailable = isset($_POST['isAvailable']) ? 1 : 0;
 
-    // Image upload handling
-    $imagePath = $product['imagePath']; // Keep existing image by default
-    if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
-        $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-        $newFileName = uniqid('prod_', true) . "." . $ext;
-        $targetDir = "uploads/";
-        if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
-        $targetFile = $targetDir . $newFileName;
+    // Bidding fields
+    $allowBidding = isset($_POST['allowBidding']) ? 1 : 0;
+    $minPrice = isset($_POST['minPrice']) ? floatval($_POST['minPrice']) : 0;
 
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
-            $imagePath = $targetFile; // Update image only if new one uploaded
-        }
-    }
-
-    // Update product
-    $updateStmt = mysqli_prepare($conn, "UPDATE products SET categoryId=?, productName=?, description=?, price=?, unitOfSale=?, stockQuantity=?, imagePath=?, isAvailable=? WHERE id=? AND farmerId=?");
-    mysqli_stmt_bind_param($updateStmt, "issdsisiii", $categoryId, $productName, $description, $price, $unitOfSale, $stockQuantity, $imagePath, $isAvailable, $productId, $farmerId);
-
-    if (mysqli_stmt_execute($updateStmt)) {
-        header("Location: viewProducts.php?msg=Product+updated+successfully");
-        exit();
+    // Validation: Minimum acceptable bid cannot exceed price
+    if ($minPrice > $price) {
+        $errorMessage = "Minimum price cannot be higher than product price.";
     } else {
-        $errorMessage = "Failed to update product. Please try again.";
+
+        // Image handling
+        $imagePath = $product['imagePath'];
+        if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
+            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+            $newFileName = uniqid('prod_', true) . "." . $ext;
+            $targetDir = "uploads/";
+            if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
+            $targetFile = $targetDir . $newFileName;
+
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
+                $imagePath = $targetFile;
+            }
+        }
+
+        // Update product
+        $updateStmt = mysqli_prepare($conn, "
+            UPDATE products 
+            SET categoryId=?, productName=?, description=?, price=?, 
+                unitOfSale=?, stockQuantity=?, imagePath=?, 
+                isAvailable=?, allowBidding=?, minPrice=? 
+            WHERE id=? AND farmerId=?
+        ");
+
+        mysqli_stmt_bind_param(
+            $updateStmt,
+            "issdsisiiidi",
+            $categoryId,
+            $productName,
+            $description,
+            $price,
+            $unitOfSale,
+            $stockQuantity,
+            $imagePath,
+            $isAvailable,
+            $allowBidding,
+            $minPrice,
+            $productId,
+            $farmerId
+        );
+
+        if (mysqli_stmt_execute($updateStmt)) {
+            header("Location: viewProducts.php?msg=Product+updated+successfully");
+            exit();
+        } else {
+            $errorMessage = "Failed to update product. Please try again.";
+        }
     }
 }
 ?>
@@ -246,6 +279,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
         <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="isAvailable" name="isAvailable" <?php echo ($product['isAvailable']) ? 'checked' : ''; ?>>
             <label class="form-check-label" for="isAvailable">Available</label>
+        </div>
+
+        <hr>
+
+        <h5 class="text-success fw-bold">Bidding Settings</h5>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="allowBidding"
+                <?= ($product['allowBidding']) ? 'checked' : ''; ?>>
+            <label class="form-check-label">
+                Allow customers to place bids
+            </label>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Minimum Acceptable Bid (JMD)</label>
+            <input type="number" step="0.01" name="minPrice"
+                class="form-control"
+                value="<?= $product['minPrice']; ?>">
+            <small class="text-muted">
+                Leave 0 to allow any bid amount.
+            </small>
         </div>
         <button type="submit" name="submit" class="btn btn-primary">Update Product</button>
         <a href="viewProducts.php" class="btn btn-secondary">Cancel</a>
