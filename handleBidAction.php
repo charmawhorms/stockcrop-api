@@ -59,20 +59,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bidId'], $_POST['acti
             break;
 
         case 'counter':
-            if (!isset($_POST['counterAmount']) || !is_numeric($_POST['counterAmount'])) {
-                die("Invalid counter amount");
-            }
-            $counterAmount = (float)$_POST['counterAmount'];
+    if (!isset($_POST['counterAmount']) || !is_numeric($_POST['counterAmount'])) {
+        die("Invalid counter amount.");
+    }
 
-            $update = $conn->prepare("UPDATE bids SET counterAmount=?, bidStatus='Countered' WHERE id=?");
-            $update->bind_param("di", $counterAmount, $bidId);
-            $update->execute();
+    $counterAmount = floatval($_POST['counterAmount']);
 
-            $msg = "Your bid has been countered to $$counterAmount. Please review it.";
-            $notif = $conn->prepare("INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'counter', ?, 0, NOW())");
-            $notif->bind_param("is", $customerId, $msg);
-            $notif->execute();
-            break;
+    // Set 1 hour expiration
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+    // Update bid
+    $update = $conn->prepare("
+        UPDATE bids 
+        SET counterAmount = ?, 
+            bidStatus = 'Countered',
+            expiresAt = ?
+        WHERE id = ?
+    ");
+    $update->bind_param("dsi", $counterAmount, $expiresAt, $bidId);
+    $update->execute();
+
+    // ✅ Use customerId (NOT users.id)
+    $msg = "The farmer countered your bid with $" . number_format($counterAmount, 2) . ". You have 1 hour to respond.";
+
+    $notif = $conn->prepare("
+        INSERT INTO notifications (userId, type, message, isRead, created_at)
+        VALUES (?, 'Bid Countered', ?, 0, NOW())
+    ");
+    $notif->bind_param("is", $customerId, $msg);
+    $notif->execute();
+
+    header("Location: manageBids.php");
+    exit();
 
         default:
             die("Invalid action");

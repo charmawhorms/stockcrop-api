@@ -14,6 +14,29 @@ $is_logged_in = isset($_SESSION['id']);
 $user_role_id = $_SESSION['roleId'];
 $userId = $_SESSION['id'];
 
+// Fetch the latest 5 notifications for the logged-in farmer
+$stmt = $conn->prepare("
+    SELECT n.id, n.type, n.message, n.isRead, n.created_at
+    FROM notifications n
+    WHERE n.userId = ?
+    ORDER BY n.created_at DESC
+    LIMIT 5
+");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$res = $stmt->get_result();
+$notifications = $res->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Count unread notifications
+$stmt = $conn->prepare("SELECT COUNT(*) AS unreadCount FROM notifications WHERE userId=? AND isRead=0");
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+$res = $stmt->get_result();
+$row = $res->fetch_assoc();
+$unreadCount = $row['unreadCount'] ?? 0;
+$stmt->close();
+
 // Fetch farmer info
 $farmerId = null;
 
@@ -195,50 +218,31 @@ $totalNotifications = $newOrdersCount + $newBidsCount;
     <!-- Notifications Dropdown (Styled & Aligned Right) -->
     <div class="d-flex align-items-center gap-3">
         <!-- Notification Bell -->
-        <div class="dropdown">
-            <button class="btn position-relative d-flex align-items-center justify-content-center p-0 bg-white border rounded-circle shadow-sm" 
-                    type="button" id="notificationsDropdown" data-bs-toggle="dropdown" aria-expanded="false" 
-                    style="width: 42px; height: 42px;">
-                <span class="material-icons-outlined text-success">notifications</span>
-                <?php if(($newOrdersCount + $newBidsCount) > 0): ?>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                        <?= $newOrdersCount + $newBidsCount ?>
-                    </span>
-                <?php endif; ?>
-            </button>
+<div class="dropdown">
+    <button class="btn position-relative d-flex align-items-center justify-content-center p-0 bg-white border rounded-circle shadow-sm" 
+            type="button" id="notificationsDropdown" data-bs-toggle="dropdown" aria-expanded="false" 
+            style="width: 42px; height: 42px;">
+        <span class="material-icons-outlined text-success">notifications</span>
+        <?php if($unreadCount > 0): ?>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                <?= $unreadCount ?>
+            </span>
+        <?php endif; ?>
+    </button>
 
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="notificationsDropdown" style="min-width:280px; max-height:400px; overflow-y:auto;">
-                <!-- Orders -->
-                <li class="dropdown-header fw-bold text-dark">🔔 New Orders</li>
-                <?php if(empty($newOrders)): ?>
-                    <li class="dropdown-item text-muted">No new orders</li>
-                <?php else: ?>
-                    <?php foreach($newOrders as $order): ?>
-                        <li class="dropdown-item">
-                            <a href="viewOrders.php?orderId=<?= $order['orderId']; ?>" class="text-decoration-none text-dark">
-                                Order #<?= $order['orderId']; ?> from <?= htmlspecialchars($order['firstName'].' '.$order['lastName']); ?>
-                            </a>
-                        </li>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-
-                <li><hr class="dropdown-divider"></li>
-
-                <!-- Bids -->
-                <li class="dropdown-header fw-bold text-dark">💰 New Bids</li>
-                <?php if(empty($newBids)): ?>
-                    <li class="dropdown-item text-muted">No new bids</li>
-                <?php else: ?>
-                    <?php foreach($newBids as $bid): ?>
-                        <li class="dropdown-item">
-                            <a href="manageBids.php?bidId=<?= $bid['bidId']; ?>" class="text-decoration-none text-dark">
-                                Bid #<?= $bid['bidId']; ?> from <?= htmlspecialchars($bid['firstName'].' '.$bid['lastName']); ?> - $<?= number_format($bid['bidAmount'], 2); ?>
-                            </a>
-                        </li>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </ul>
-        </div>
+    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="notificationsDropdown" style="min-width:280px; max-height:400px; overflow-y:auto;">
+        <?php if(empty($notifications)): ?>
+            <li class="dropdown-item text-muted">No new notifications</li>
+        <?php else: ?>
+            <?php foreach($notifications as $note): ?>
+                <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold' : '' ?>">
+                    <?= htmlspecialchars($note['message']) ?><br>
+                    <small class="text-muted"><?= date('M d, Y H:i', strtotime($note['created_at'])) ?></small>
+                </li>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </ul>
+</div>
 
         <!-- Logout Button -->
         <a href="logout.php" class="btn btn-logout">Logout</a>
@@ -286,4 +290,10 @@ $totalNotifications = $newOrdersCount + $newBidsCount;
     function toggleSidebar() {
         document.getElementById('sidebar').classList.toggle('show-sidebar');
     }
+
+    document.getElementById('notificationsDropdown').addEventListener('click', () => {
+    fetch('markRead.php', { method: 'POST', body: new URLSearchParams({ userId: <?= $userId ?> }) })
+        .then(res => res.text())
+        .then(console.log);
+});
 </script>

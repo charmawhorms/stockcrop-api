@@ -6,6 +6,12 @@ if (!isset($_SESSION['id'])) {
     header('Location: login.php');
     exit;
 }
+mysqli_query($conn, "
+    UPDATE bids
+    SET bidStatus = 'Expired'
+    WHERE bidStatus = 'Countered'
+    AND expiresAt <= NOW()
+");
 
 $userId = $_SESSION['id'];
 

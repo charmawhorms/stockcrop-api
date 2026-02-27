@@ -1,17 +1,9 @@
 <?php
-    session_start();
-    include 'config.php';
-
-    if(!isset($_SESSION['id'])) {
-        exit('Not logged in');
-    }
-
-    $userId = $_SESSION['id'];
-
-    $stmt = mysqli_prepare($conn, "UPDATE notifications SET isRead=1 WHERE userId=? AND isRead=0");
-    mysqli_stmt_bind_param($stmt, "i", $userId);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-
-    echo "success";
-?>
+include 'config.php';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['userId'])) {
+    $userId = (int)$_POST['userId'];
+    $stmt = $conn->prepare("UPDATE notifications SET isRead=1 WHERE userId=? AND isRead=0");
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $stmt->close();
+}

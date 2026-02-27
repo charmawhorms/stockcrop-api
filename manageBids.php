@@ -27,8 +27,10 @@
             b.id AS finalBidId,
             b.quantity AS finalQty, 
             b.bidAmount AS finalAmount,
+            b.counterAmount,
             b.bidStatus AS finalStatus,
             b.bidTime AS finalTime,
+            b.expiresAt,
             p.productName AS finalProdName,
             p.price AS originalPrice,
             u.email AS finalEmail,
@@ -53,7 +55,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bid Management | StockCrop</title>
+    <title>Manage Bids| StockCrop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
@@ -384,7 +386,12 @@
                                     </form>
                                 </div>
                                 <?php else: ?>
-                                    <span class="badge bg-light text-muted border">Bid Closed</span>
+                                    <?php if ($status === 'Countered'): ?>
+                                        <span class="badge bg-info text-white">Waiting on Customer</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-light text-muted border">Bid Closed</span>
+                                    <?php endif; ?>
+
                                 <?php endif; ?>
                             </td>
                         </tr>
