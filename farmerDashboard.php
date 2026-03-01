@@ -370,8 +370,9 @@ foreach ($orderStatusData as $row) {
                 <div class="card card-dash h-100 p-4 text-center">
                     <h5 class="fw-bold">Farm QR Code</h5>
                     <?php
-                        // Live Render URL!
-                        $qrUrl = "https://stockcrop.onrender.com/viewFarmer.php?id=" . $farmerId;
+                        // Live Render URL
+                        $qrUrl = "https://stockcrop.onrender.com/farmerProfile.php?id=" . $farmerId;
+                        //$qrUrl =  "http://localhost/stockcrop/farmerProfile.php?id=" . $farmerId;
                     ?>
                     <img 
                         src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?php echo urlencode($qrUrl); ?>" 

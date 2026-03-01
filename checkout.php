@@ -74,14 +74,68 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     while ($row = mysqli_fetch_assoc($result)) {
+        // CHECK IF THERE IS AN ACCEPTED BID
+        $bidCheck = mysqli_prepare($conn, "
+            SELECT id, counterAmount, expiresAt 
+            FROM bids 
+            WHERE productId = ? 
+            AND userId = ? 
+            AND bidStatus = 'Accepted'
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+        mysqli_stmt_bind_param($bidCheck, "ii", $row['productId'], $user_id);
+        mysqli_stmt_execute($bidCheck);
+        $bidResult = mysqli_stmt_get_result($bidCheck);
+        $bid = mysqli_fetch_assoc($bidResult);
+        mysqli_stmt_close($bidCheck);
+
+        if ($bid) {
+            //CHECK IF BID EXPIRED
+            if (!empty($bid['expiresAt']) && strtotime($bid['expiresAt']) < time()) {
+
+                //Bid expired - Reset price to original product price
+                $originalPriceQuery = mysqli_prepare($conn, "
+                    SELECT price FROM products WHERE id = ?
+                ");
+                mysqli_stmt_bind_param($originalPriceQuery, "i", $row['productId']);
+                mysqli_stmt_execute($originalPriceQuery);
+                $originalResult = mysqli_stmt_get_result($originalPriceQuery);
+                $productData = mysqli_fetch_assoc($originalResult);
+                mysqli_stmt_close($originalPriceQuery);
+
+                $row['price'] = $productData['price'];
+
+                //Update cart item price
+                $updateCartPrice = mysqli_prepare($conn, "
+                    UPDATE cartItems 
+                    SET price = ? 
+                    WHERE id = ?
+                ");
+                mysqli_stmt_bind_param($updateCartPrice, "di", $row['price'], $row['cartItemId']);
+                mysqli_stmt_execute($updateCartPrice);
+                mysqli_stmt_close($updateCartPrice);
+
+            } else {
+
+                //Bid still valid - enforce agreed bid price
+                $row['price'] = $bid['counterAmount'];
+            }
+        }
+
+        //STOCK CHECK (unchanged)
         if ($row['quantity'] > $row['stockQuantity']) {
-            $_SESSION['message'] = ['type' => 'danger', 'text' => 'Stock quantity exceeded for a product. Please review your cart.'];
-            header("Location: cart.php"); 
+            $_SESSION['message'] = [
+                'type' => 'danger',
+                'text' => 'Stock quantity exceeded for a product. Please review your cart.'
+            ];
+            header("Location: cart.php");
             exit();
         }
 
         $line_total = $row['quantity'] * $row['price'];
         $order_subtotal += $line_total;
+
         $row['lineTotal'] = $line_total;
         $cart_items[] = $row;
     }

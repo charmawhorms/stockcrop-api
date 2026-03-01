@@ -6,20 +6,19 @@ header('Content-Type: application/json');
 
 $cartData = [];
 $productIds = [];
+$isLoggedIn = isset($_SESSION['id']);
+$userId = $isLoggedIn ? $_SESSION['id'] : null;
 
-// --- Determine Cart Source ---
-if (isset($_SESSION['id'])) {
-    // 1. LOGGED-IN USER: Get cart items from the database
-    $userId = $_SESSION['id'];
-    
-    // Join cart header with cartItems
+//Get cart source (logged in = database | guest = session)
+if ($isLoggedIn) {
+
     $stmt = mysqli_prepare($conn, "
         SELECT ci.productId, ci.quantity, ci.price 
         FROM cartItems ci
         JOIN cart c ON ci.cartId = c.id
         WHERE c.userId = ?
     ");
-    
+
     if ($stmt) {
         mysqli_stmt_bind_param($stmt, "i", $userId);
         mysqli_stmt_execute($stmt);
@@ -27,57 +26,109 @@ if (isset($_SESSION['id'])) {
 
         while ($row = mysqli_fetch_assoc($result)) {
             $productIds[] = $row['productId'];
-            // Store the quantity and the *price stored in the cartItems table*
+
             $cartData[$row['productId']] = [
-                'quantity' => $row['quantity'],
+                'quantity' => intval($row['quantity']),
                 'price' => floatval($row['price'])
             ];
         }
         mysqli_stmt_close($stmt);
     }
+
 } elseif (isset($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-    // 2. GUEST USER: Get cart items from the session array
+
     foreach ($_SESSION['cart'] as $productId => $quantity) {
         $productIds[] = $productId;
-        // GUEST: Only quantity is stored in session. Price must be fetched later.
-        $cartData[$productId] = ['quantity' => $quantity]; 
+        $cartData[$productId] = ['quantity' => intval($quantity)];
     }
 }
 
-// --- Fetch Product Details for all items in the cart ---
+//Fetch product details
 if (!empty($productIds)) {
-    // Prepare product ID string for IN clause
+
     $idString = implode(',', array_map('intval', $productIds));
 
     $sql = "
-        SELECT p.id, p.productName, p.price, p.unitOfSale, p.imagePath, p.stockQuantity, f.parish
+        SELECT p.id, p.productName, p.price, p.unitOfSale,
+               p.imagePath, p.stockQuantity, f.parish
         FROM products p
         JOIN farmers f ON p.farmerId = f.id
         WHERE p.id IN ($idString)
     ";
-    
+
     $productResult = mysqli_query($conn, $sql);
 
     while ($product = mysqli_fetch_assoc($productResult)) {
+
         $id = $product['id'];
-        
-        // Use price from products table ONLY if the cartData doesn't have it (Guest user)
-        $itemPrice = $cartData[$id]['price'] ?? floatval($product['price']);
-        
-        // Merge product details with cart quantity
-        $cartData[$id] = array_merge($cartData[$id], [
-            'id' => intval($product['id']), 
+        $originalPrice = floatval($product['price']);
+
+        //Default price (guest OR stored cart price)
+        $itemPrice = $cartData[$id]['price'] ?? $originalPrice;
+
+        //Bid validation (logged in ONLY)
+        if ($isLoggedIn) {
+
+            $bidCheck = mysqli_prepare($conn, "
+                SELECT counterAmount, expiresAt
+                FROM bids
+                WHERE productId = ?
+                AND userId = ?
+                AND bidStatus = 'Accepted'
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+
+            mysqli_stmt_bind_param($bidCheck, "ii", $id, $userId);
+            mysqli_stmt_execute($bidCheck);
+            $bidResult = mysqli_stmt_get_result($bidCheck);
+            $bid = mysqli_fetch_assoc($bidResult);
+            mysqli_stmt_close($bidCheck);
+
+            if ($bid) {
+
+                if (!empty($bid['expiresAt']) && strtotime($bid['expiresAt']) < time()) {
+
+                    //Bid expired - reset to original product price
+                    $itemPrice = $originalPrice;
+
+                    //Update cartItems table
+                    $update = mysqli_prepare($conn, "
+                        UPDATE cartItems ci
+                        JOIN cart c ON ci.cartId = c.id
+                        SET ci.price = ?
+                        WHERE ci.productId = ?
+                        AND c.userId = ?
+                    ");
+                    mysqli_stmt_bind_param($update, "dii", $itemPrice, $id, $userId);
+                    mysqli_stmt_execute($update);
+                    mysqli_stmt_close($update);
+
+                } else {
+
+                    //Bid still valid
+                    $itemPrice = floatval($bid['counterAmount']);
+                }
+            }
+        }
+
+        $quantity = $cartData[$id]['quantity'];
+        $lineTotal = round($quantity * $itemPrice, 2);
+
+        //Merge product details with cart quantity
+        $cartData[$id] = [
+            'id' => intval($id),
             'productName' => htmlspecialchars($product['productName']),
-            'price' => $itemPrice, // Use item price (cartItems or products)
+            'price' => $itemPrice,
+            'quantity' => $quantity,
             'unitOfSale' => htmlspecialchars($product['unitOfSale']),
             'imagePath' => htmlspecialchars($product['imagePath']),
             'stockQuantity' => intval($product['stockQuantity']),
             'parish' => htmlspecialchars($product['parish']),
-            'lineTotal' => round($cartData[$id]['quantity'] * $itemPrice, 2)
-        ]);
+            'lineTotal' => $lineTotal
+        ];
     }
 }
 
-// Convert the associative array (key=productId) into an indexed array for easier JavaScript iteration
+//Convert the associative array (key=productId) into an indexed array for easier JavaScript iteration
 echo json_encode(['items' => array_values($cartData)]);
-?>
