@@ -381,10 +381,11 @@ foreach ($orderStatusData as $row) {
                     ?>
 
                     <div class="bg-light p-3 rounded-4 d-inline-block mb-3 shadow-sm">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($qrUrl); ?>" 
-                        alt="Farmer Profile"
-                        style="cursor:pointer;"
-                        onclick="window.location.href='stallCard.php?farmer_id=<?php echo $farmerId; ?>" style="max-width: 160px;">
+                        <a href="stallCard.php?farmer_id=<?php echo $farmerId; ?>" target="_blank">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($qrUrl); ?>" 
+                                alt="Farmer Profile"
+                                style="cursor:pointer; max-width: 160px;">
+                        </a>
                     </div>
 
                     <div class="d-grid gap-2">
