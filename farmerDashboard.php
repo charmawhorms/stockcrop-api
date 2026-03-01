@@ -367,24 +367,37 @@ foreach ($orderStatusData as $row) {
             </div>
 
             <div class="col-lg-3 col-md-6 col-sm-12">
-                <div class="card card-dash h-100 p-4 text-center">
-                    <h5 class="fw-bold">Farm QR Code</h5>
+                <div class="card shadow-sm border-0 h-100 text-center p-4 rounded-4">
+
+                    <div class="mb-3">
+                        <h5 class="fw-bold mb-1">Your Stall QR Code</h5>
+                        <p class="text-muted small mb-0">
+                            Customers can scan to view your profile & products
+                        </p>
+                    </div>
+
                     <?php
-                        // Live Render URL
                         $qrUrl = "https://stockcrop.onrender.com/farmerProfile.php?id=" . $farmerId;
-                        //$qrUrl =  "http://localhost/stockcrop/farmerProfile.php?id=" . $farmerId;
                     ?>
-                    <img 
-                        src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?php echo urlencode($qrUrl); ?>" 
-                        alt="QR Code"
-                        class="mx-auto mb-2 img-fluid"
-                        style="max-width: 120px;"
-                    >
-                    <a href="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=<?php echo urlencode($qrUrl); ?>" 
-                    download="Farm_QR.png" 
-                    class="btn btn-sm btn-link text-success text-decoration-none">
-                    Download QR
-                    </a>
+
+                    <div class="bg-light p-3 rounded-4 d-inline-block mb-3 shadow-sm">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($qrUrl); ?>" 
+                        alt="Farmer Profile"
+                        style="cursor:pointer;"
+                        onclick="window.print();" style="max-width: 160px;">
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <a href="stallCard.php?farmer_id=<?php echo $farmerId; ?>&download=true" 
+                        class="btn btn-success btn-sm rounded-pill">
+                            Download Stall Flyer
+                        </a>
+
+                        <small class="text-muted">
+                            Tip: Print and place at your market stall
+                        </small>
+                    </div>
+
                 </div>
             </div>
         </div>
