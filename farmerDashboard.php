@@ -384,7 +384,7 @@ foreach ($orderStatusData as $row) {
                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($qrUrl); ?>" 
                         alt="Farmer Profile"
                         style="cursor:pointer;"
-                        onclick="window.print();" style="max-width: 160px;">
+                        onclick="window.location.href='stallCard.php?farmer_id=<?php echo $farmerId; ?>" style="max-width: 160px;">
                     </div>
 
                     <div class="d-grid gap-2">
