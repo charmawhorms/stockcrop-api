@@ -135,7 +135,7 @@
             $showSuccess = true;
         } else {
             $showError = true;
-            $errorMessage = "Unable to create farmer details.";
+            $errorMessage = "Unable to create farmer details: " . mysqli_error($conn);
         }
 
     } end:
