@@ -183,7 +183,7 @@ $farmerCount = count($farmersData);
 
                         <div class="farmer-detail">
                             <span class="material-symbols-outlined">badge</span>
-                            <span class="farmer-id-badge">RADA ID: <?= htmlspecialchars($row['radaIdNumber']); ?></span>
+                            <span class="farmer-id-badge">RADA ID: <?= htmlspecialchars($row['radaIdNumber'] ?? 'NULL'); ?></span>
                         </div>
 
                         <div class="farmer-detail mt-3">

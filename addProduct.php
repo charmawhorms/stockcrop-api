@@ -2,6 +2,7 @@
 include 'session.php';
 include 'config.php';
 
+
 // Only allow farmers
 redirectIfNotLoggedIn();
 if ($_SESSION['roleId'] != 2) {
@@ -11,7 +12,7 @@ if ($_SESSION['roleId'] != 2) {
 
 // Get farmerId
 $userId = $_SESSION['id'];
-$farmerQuery = mysqli_prepare($conn, "SELECT id FROM farmers WHERE userId = ?");
+$farmerQuery = mysqli_prepare($conn, "SELECT id, verification_status FROM farmers WHERE userId = ?");
 mysqli_stmt_bind_param($farmerQuery, "i", $userId);
 mysqli_stmt_execute($farmerQuery);
 $farmerResult = mysqli_stmt_get_result($farmerQuery);
@@ -21,6 +22,13 @@ if ($farmerResult && mysqli_num_rows($farmerResult) > 0) {
     $farmerId = $farmerRow['id'];
 } else {
     die("Error: Farmer record not found.");
+}
+
+// After session and farmer data fetch
+if ($farmerRow['verification_status'] !== 'verified') {
+    $_SESSION['error'] = "Your account must be verified before you can list products.";
+    header("Location: farmerDashboard.php");
+    exit();
 }
 
 $successMessage = '';

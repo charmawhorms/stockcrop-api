@@ -352,7 +352,10 @@
                                         <!--<button type="button" class="btn-circle btn-circle-counter" data-bs-toggle="modal" data-bs-target="#counterModal<?= $row['finalBidId'] ?>" title="Counter Offer">
                                             <span class="material-icons-outlined">payments</span>
                                         </button>-->
-
+                                        <button name="action" value="reject" class="btn-circle btn-circle-reject" title="Reject Offer">
+                                            <span class="material-icons-outlined">cancel</span>
+                                        </button>
+                                        
                                         <button class="btn-circle btn-circle-counter" data-bs-toggle="modal" data-bs-target="#counterModal<?= $row['finalBidId'] ?>" title="Counter Offer">
                                             <span class="material-icons-outlined">payments</span>
                                         </button>
@@ -380,9 +383,7 @@
                                         </div>
                                         </div>
                                         
-                                        <button name="action" value="reject" class="btn-circle btn-circle-reject" title="Reject Offer">
-                                            <span class="material-icons-outlined">cancel</span>
-                                        </button>
+                                        
                                     </form>
                                 </div>
                                 <?php else: ?>

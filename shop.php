@@ -10,11 +10,12 @@ $verifiedFilter = isset($_GET['verifiedOnly']) ? true : false;
 
 // --- 2. Build products query dynamically ---
 $products = [];
-$sql = "SELECT p.*, f.firstName, f.lastName, f.parish, f.verification_status, c.categoryName
+$sql = "SELECT p.*, f.firstName, f.lastName, f.parish, f.verification_status, f.farmerType, c.categoryName
         FROM products p
         LEFT JOIN farmers f ON p.farmerId = f.id
         LEFT JOIN categories c ON p.categoryId = c.id
-        WHERE p.isAvailable = 1 AND p.stockQuantity > 0";
+        WHERE p.isAvailable = 1 AND p.stockQuantity > 0
+        AND f.verification_status = 'verified'";
 
 $params = [];
 $types = '';
@@ -44,7 +45,12 @@ if ($verifiedFilter) {
     $sql .= " AND f.verification_status = 'verified'";
 }
 
-$sql .= " ORDER BY f.verification_status DESC, p.id DESC";
+$sql .= " ORDER BY 
+    (CASE 
+        WHEN f.farmerType = 'verified' THEN 1
+        WHEN f.farmerType = 'guest' THEN 2
+        ELSE 3 
+    END) ASC, p.id DESC";
 
 $stmt = mysqli_prepare($conn, $sql);
 if (!$stmt) {
