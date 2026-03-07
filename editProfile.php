@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .content { 
-            margin-left: 250px; 
+            /*margin-left: 250px; */
             padding: 100px 2rem 3rem 2rem; 
             transition: all 0.3s;
         }
@@ -209,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 
-<?php include 'sidePanel.php'; ?>
+<?php //include 'sidePanel.php'; ?>
 
 <div class="content">
     <div class="container">
