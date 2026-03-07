@@ -75,8 +75,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
 
         if ($errorMessage == '') {
             // Default values
-if ($imagePath === null) $imagePath = '';
-if ($minPrice === null) $minPrice = 0;
+//if ($imagePath === null) $imagePath = '';
+//if ($minPrice === null) $minPrice = 0;
 
 $stmt = mysqli_prepare($conn, "
     INSERT INTO products
