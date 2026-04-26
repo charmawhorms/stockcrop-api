@@ -2,6 +2,13 @@
     session_start();
     include 'config.php'; 
 
+    use PHPMailer\PHPMailer\PHPMailer;
+    use PHPMailer\PHPMailer\Exception;
+
+    require 'PHPMailer/Exception.php';
+    require 'PHPMailer/PHPMailer.php';
+    require 'PHPMailer/SMTP.php';
+
     // Check if a redirection parameter exists (e.g., from checkout)
     $redirect_url = htmlspecialchars($_GET['redirect'] ?? 'login.php');
 
@@ -76,6 +83,55 @@
                     mysqli_commit($conn);
                     
                     $registration_successful = true;
+
+                    // --- START WELCOME EMAIL LOGIC ---
+                    $mail = new PHPMailer(true);
+                    try {
+                        $mail->isSMTP();
+                        $mail->Host       = 'smtp.gmail.com'; 
+                        $mail->SMTPAuth   = true;
+                        $mail->Username   = ''; 
+                        $mail->Password   = ''; 
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                        $mail->Port       = 587;
+
+                        // SSL Fix for local testing
+                        $mail->SMTPOptions = array(
+                            'ssl' => array(
+                                'verify_peer' => false,
+                                'verify_peer_name' => false,
+                                'allow_self_signed' => true
+                            )
+                        );
+
+                        $mail->setFrom('no-reply@stockcrop.com', 'StockCrop Jamaica');
+                        $mail->addAddress($email, $firstName); 
+                        $mail->isHTML(true);
+                        $mail->Subject = 'Welcome to StockCrop, ' . $firstName . '!';
+                        
+                        $mail->Body = "
+                            <div style='font-family: sans-serif; line-height: 1.6; color: #333;'>
+                                <h2 style='color: #2f8f3f;'>Welcome to the Family!</h2>
+                                <p>Hi $firstName,</p>
+                                <p>Thank you for joining <strong>StockCrop Jamaica</strong>. Your account has been successfully created, and you're all set to shop for the freshest local produce.</p>
+                                <p><strong>What's next?</strong></p>
+                                <ul>
+                                    <li>Browse seasonal crops directly from Jamaican farmers.</li>
+                                    <li>Enjoy direct-to-door delivery.</li>
+                                    <li>Support local agriculture with every purchase.</li>
+                                </ul>
+                                <p>Happy shopping!</p>
+                                <br>
+                                <p>Best regards,<br>The StockCrop Team</p>
+                            </div>";
+
+                        $mail->send();
+                    } catch (Exception $e) {
+                        // We log the error but don't stop the registration 
+                        // because we want the customer to keep shopping!
+                        error_log("Welcome Email failed: " . $mail->ErrorInfo);
+                    }
+                    // --- END WELCOME EMAIL LOGIC ---
                     
                     // Automatically log the user in
                     $_SESSION['id'] = $new_user_id;

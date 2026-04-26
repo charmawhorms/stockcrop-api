@@ -1,6 +1,13 @@
 <?php
     include 'config.php';
 
+    use PHPMailer\PHPMailer\PHPMailer;
+    use PHPMailer\PHPMailer\Exception;
+
+    require 'PHPMailer/Exception.php';
+    require 'PHPMailer/PHPMailer.php';
+    require 'PHPMailer/SMTP.php';
+
     $farmerRoleId = 2;
     $showSuccess = false;
     $showError = false;
@@ -104,10 +111,13 @@
             move_uploaded_file($_FILES['trnFile']['tmp_name'], $trnFileName);
         }
 
+        // --- ADD THE VERIFICATION CODE GENERATION HERE ---
+        $verificationCode = bin2hex(random_bytes(16));
+
         // Create user
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-        $query2 = mysqli_prepare($conn, "INSERT INTO users (roleId,email,password_hash,created_at) VALUES (?,?,?,NOW())");
-        mysqli_stmt_bind_param($query2, "iss", $farmerRoleId, $email, $hashedPassword);
+        $query2 = mysqli_prepare($conn, "INSERT INTO users (roleId, email, password_hash, verification_code, is_verified, created_at) VALUES (?, ?, ?, ?, 0, NOW())");
+        mysqli_stmt_bind_param($query2, "isss", $farmerRoleId, $email, $hashedPassword, $verificationCode);
         if (!mysqli_stmt_execute($query2)) {
             $showError = true;
             $errorMessage = "Unable to create user account.";
@@ -133,6 +143,50 @@
 
         if ($insertFarmer && mysqli_stmt_execute($insertFarmer)) {
             $showSuccess = true;
+
+            // --- 2. START MAIL LOGIC (Only fires if DB insert worked) ---
+                $mail = new PHPMailer(true);
+                //$mail->SMTPDebug = 2; // Enable verbose debug output (for development)
+                try {
+                    $mail->isSMTP();
+                    $mail->Host       = 'smtp.gmail.com'; 
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = ''; 
+                    $mail->Password   = ''; 
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port       = 587;
+
+                    // WAMP/Localhost SSL Fix
+                    $mail->SMTPOptions = array(
+                        'ssl' => array(
+                            'verify_peer' => false,
+                            'verify_peer_name' => false,
+                            'allow_self_signed' => true
+                        )
+                    );
+
+                    $mail->setFrom('no-reply@stockcrop.com', 'StockCrop Jamaica');
+                    $mail->addAddress($email, $firstName); 
+                    $mail->isHTML(true);
+
+                    // NEW: The Verification Link
+                    $verifyLink = "http://localhost/stockcrop/verify.php?code=" . $verificationCode;
+
+                    $mail->Subject = 'Verify Your StockCrop Account';
+                    
+                    $statusText = ($farmerType === 'verified') ? 'active' : 'under review by our team';
+                    $mail->Body = "
+                        <h3>Welcome to StockCrop, $firstName!</h3>
+                        <p>Please verify your email address to activate your farmer account and begin listing your crops.</p>
+                        <p><a href='$verifyLink' style='background:#2f8f3f; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; display:inline-block;'>Verify Account</a></p>
+                        <p>If the button doesn't work, copy this link: $verifyLink</p>
+                    ";
+
+                    $mail->send();
+                } catch (Exception $e) {
+                    error_log("Mail Error: " . $mail->ErrorInfo);
+                }
+                // --- END MAIL LOGIC ---
         } else {
             $showError = true;
             $errorMessage = "Unable to create farmer details: " . mysqli_error($conn);
@@ -191,7 +245,13 @@ body{font-family:'Inter',sans-serif;background-color:#fff;margin:0}
 
 <?php if($showSuccess): ?>
 <script>
-Swal.fire({icon:'success',title:'Registration Successful!',text:'Your farmer account has been created.',confirmButtonText:'Go to Login'}).then(()=>{window.location.href='login.php';});
+Swal.fire({
+    icon: 'info',
+    title: 'Verify Your Email',
+    text: 'Registration successful! We have sent a verification link to <?= $email ?>. Please check your inbox (and spam) to activate your account.',
+    confirmButtonText: 'Got it',
+    confirmButtonColor: '#2f8f3f'
+});
 </script>
 <?php elseif($showError): ?>
 <script>

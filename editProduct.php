@@ -59,6 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $stockQuantity = intval($_POST['stockQuantity']);
     $categoryId = intval($_POST['categoryId']);
     $isAvailable = isset($_POST['isAvailable']) ? 1 : 0;
+    $paymentMode = isset($_POST['payment_mode']) ? 1 : 0;
 
     // Bidding fields
     $allowBidding = isset($_POST['allowBidding']) ? 1 : 0;
@@ -88,13 +89,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
             UPDATE products 
             SET categoryId=?, productName=?, description=?, price=?, 
                 unitOfSale=?, stockQuantity=?, imagePath=?, 
-                isAvailable=?, allowBidding=?, minPrice=? 
+                isAvailable=?, payment_mode=?, allowBidding=?, minPrice=? 
             WHERE id=? AND farmerId=?
         ");
 
         mysqli_stmt_bind_param(
             $updateStmt,
-            "issdsisiiidi",
+            "issdsisiiiidi",
             $categoryId,
             $productName,
             $description,
@@ -103,6 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
             $stockQuantity,
             $imagePath,
             $isAvailable,
+            $paymentMode,
             $allowBidding,
             $minPrice,
             $productId,
@@ -279,6 +281,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
         <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="isAvailable" name="isAvailable" <?php echo ($product['isAvailable']) ? 'checked' : ''; ?>>
             <label class="form-check-label" for="isAvailable">Available</label>
+        </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="payment_mode" value="1" id="cashOnly">
+            <label class="form-check-label" for="cashOnly">
+                <strong>Cash Only:</strong> Check this if you do not have a bank account and need to be paid in cash.
+            </label>
         </div>
 
         <hr>

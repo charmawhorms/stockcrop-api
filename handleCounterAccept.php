@@ -87,7 +87,7 @@ $stmt->close();
 
 // Notify farmer
 $stmt = $conn->prepare("
-    INSERT INTO notifications (userId, type, message, isRead, created_at)
+    INSERT INTO notifications (userId, userRole, type, message, isRead, created_at)
     SELECT f.id, 'Bid Accepted',
            'A customer accepted your counter offer.',
            0, NOW()

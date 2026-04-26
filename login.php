@@ -20,7 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $password = $_POST["password"];
 
     // Query to find user by email using a prepared statement (security)
-    $query = mysqli_prepare($conn, "SELECT id, roleId, password_hash FROM users WHERE email = ?");
+    $query = mysqli_prepare($conn, "SELECT id, roleId, password_hash, is_verified FROM users WHERE email = ?");
     mysqli_stmt_bind_param($query, "s", $email);
     mysqli_stmt_execute($query);
     $result = mysqli_stmt_get_result($query);
@@ -30,117 +30,124 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
 
         // Verify password against the stored hash
         if (password_verify($password, $user["password_hash"])) {
-            session_regenerate_id(true); // Prevent session fixation
+            // === NEW: THE VERIFICATION GATE ===
+            // Only Farmers (Role 2) are blocked if not verified. 
+            // Admins (1) and Customers (3) can pass through.
+            if ($user["roleId"] == 2 && $user["is_verified"] == 0) {
+                $errorMessage = "Your Farmer account is not verified. Please check your email for the activation link.";
+            } else {
+                session_regenerate_id(true); // Prevent session fixation
 
-            // Set core session variables
-            $_SESSION["id"] = $user["id"];
-            $_SESSION["roleId"] = $user["roleId"];
+                // Set core session variables
+                $_SESSION["id"] = $user["id"];
+                $_SESSION["roleId"] = $user["roleId"];
 
 
-            // 3. Redirect based on role
-            if ($user["roleId"] == 2) {
-                // Farmer login always goes to the dashboard
-                header("Location: farmerDashboard.php");
-                exit();
-            } elseif ($user["roleId"] == 1) {
-                // Admin login always goes to the dashboard
-                header("Location: adminDashboard.php");
-                exit();
-            } elseif ($user["roleId"] == 3) { 
-                // CUSTOMER LOGIN FLOW
+                // 3. Redirect based on role
+                if ($user["roleId"] == 2) {
+                    // Farmer login always goes to the dashboard
+                    header("Location: farmerDashboard.php");
+                    exit();
+                } elseif ($user["roleId"] == 1) {
+                    // Admin login always goes to the dashboard
+                    header("Location: adminDashboard.php");
+                    exit();
+                } elseif ($user["roleId"] == 3) { 
+                    // CUSTOMER LOGIN FLOW
 
-                // Fetch Customer data (firstName) for the session
-                $customer_query = mysqli_prepare($conn, "SELECT firstName, lastName, address1, address2, parish FROM customers WHERE userId = ?");
-                mysqli_stmt_bind_param($customer_query, "i", $user["id"]);
-                mysqli_stmt_execute($customer_query);
-                $customer_result = mysqli_stmt_get_result($customer_query);
-                
-                if ($customer_row = mysqli_fetch_assoc($customer_result)) {
-                    $_SESSION['firstName'] = $customer_row['firstName'];
-                    $_SESSION['lastName']  = $customer_row['lastName'];
-                    $_SESSION['address1']  = $customer_row['address1'];
-                    $_SESSION['address2']  = $customer_row['address2'];
-                    $_SESSION['parish']  = $customer_row['parish'];
-                }
-                mysqli_stmt_close($customer_query);
-
-                // === MERGE GUEST CART INTO DATABASE CART ===
-                if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
-
-                    // Find or create user's cart
-                    $cartQuery = mysqli_prepare($conn, "SELECT id FROM cart WHERE userId = ?");
-                    mysqli_stmt_bind_param($cartQuery, "i", $user["id"]);
-                    mysqli_stmt_execute($cartQuery);
-                    $cartResult = mysqli_stmt_get_result($cartQuery);
-
-                    if ($cartRow = mysqli_fetch_assoc($cartResult)) {
-                        $cartId = $cartRow['id'];
-                    } else {
-                        $insertCart = mysqli_prepare($conn, "INSERT INTO cart (userId) VALUES (?)");
-                        mysqli_stmt_bind_param($insertCart, "i", $user["id"]);
-                        mysqli_stmt_execute($insertCart);
-                        $cartId = mysqli_insert_id($conn);
-                        mysqli_stmt_close($insertCart);
+                    // Fetch Customer data (firstName) for the session
+                    $customer_query = mysqli_prepare($conn, "SELECT firstName, lastName, address1, address2, parish FROM customers WHERE userId = ?");
+                    mysqli_stmt_bind_param($customer_query, "i", $user["id"]);
+                    mysqli_stmt_execute($customer_query);
+                    $customer_result = mysqli_stmt_get_result($customer_query);
+                    
+                    if ($customer_row = mysqli_fetch_assoc($customer_result)) {
+                        $_SESSION['firstName'] = $customer_row['firstName'];
+                        $_SESSION['lastName']  = $customer_row['lastName'];
+                        $_SESSION['address1']  = $customer_row['address1'];
+                        $_SESSION['address2']  = $customer_row['address2'];
+                        $_SESSION['parish']  = $customer_row['parish'];
                     }
-                    mysqli_stmt_close($cartQuery);
+                    mysqli_stmt_close($customer_query);
 
-                    // Loop through session cart items
-                    foreach ($_SESSION['cart'] as $productId => $qty) {
+                    // === MERGE GUEST CART INTO DATABASE CART ===
+                    if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
 
-                        // Get product price
-                        $priceQuery = mysqli_prepare($conn, "SELECT price FROM products WHERE id = ?");
-                        mysqli_stmt_bind_param($priceQuery, "i", $productId);
-                        mysqli_stmt_execute($priceQuery);
-                        $priceResult = mysqli_stmt_get_result($priceQuery);
-                        $priceRow = mysqli_fetch_assoc($priceResult);
-                        mysqli_stmt_close($priceQuery);
+                        // Find or create user's cart
+                        $cartQuery = mysqli_prepare($conn, "SELECT id FROM cart WHERE userId = ?");
+                        mysqli_stmt_bind_param($cartQuery, "i", $user["id"]);
+                        mysqli_stmt_execute($cartQuery);
+                        $cartResult = mysqli_stmt_get_result($cartQuery);
 
-                        if (!$priceRow) continue; // product no longer exists
-
-                        $price = $priceRow['price'];
-
-                        // Check if product already in cart
-                        $itemQuery = mysqli_prepare($conn,
-                            "SELECT quantity FROM cartItems WHERE cartId = ? AND productId = ?"
-                        );
-                        mysqli_stmt_bind_param($itemQuery, "ii", $cartId, $productId);
-                        mysqli_stmt_execute($itemQuery);
-                        $itemResult = mysqli_stmt_get_result($itemQuery);
-
-                        if ($itemRow = mysqli_fetch_assoc($itemResult)) {
-                            // Update quantity
-                            $newQty = $itemRow['quantity'] + $qty;
-                            $updateItem = mysqli_prepare($conn,
-                                "UPDATE cartItems SET quantity = ? WHERE cartId = ? AND productId = ?"
-                            );
-                            mysqli_stmt_bind_param($updateItem, "iii", $newQty, $cartId, $productId);
-                            mysqli_stmt_execute($updateItem);
-                            mysqli_stmt_close($updateItem);
+                        if ($cartRow = mysqli_fetch_assoc($cartResult)) {
+                            $cartId = $cartRow['id'];
                         } else {
-                            // Insert new item
-                            $insertItem = mysqli_prepare($conn,
-                                "INSERT INTO cartItems (cartId, productId, quantity, price)
-                                VALUES (?, ?, ?, ?)"
+                            $insertCart = mysqli_prepare($conn, "INSERT INTO cart (userId) VALUES (?)");
+                            mysqli_stmt_bind_param($insertCart, "i", $user["id"]);
+                            mysqli_stmt_execute($insertCart);
+                            $cartId = mysqli_insert_id($conn);
+                            mysqli_stmt_close($insertCart);
+                        }
+                        mysqli_stmt_close($cartQuery);
+
+                        // Loop through session cart items
+                        foreach ($_SESSION['cart'] as $productId => $qty) {
+
+                            // Get product price
+                            $priceQuery = mysqli_prepare($conn, "SELECT price FROM products WHERE id = ?");
+                            mysqli_stmt_bind_param($priceQuery, "i", $productId);
+                            mysqli_stmt_execute($priceQuery);
+                            $priceResult = mysqli_stmt_get_result($priceQuery);
+                            $priceRow = mysqli_fetch_assoc($priceResult);
+                            mysqli_stmt_close($priceQuery);
+
+                            if (!$priceRow) continue; // product no longer exists
+
+                            $price = $priceRow['price'];
+
+                            // Check if product already in cart
+                            $itemQuery = mysqli_prepare($conn,
+                                "SELECT quantity FROM cartItems WHERE cartId = ? AND productId = ?"
                             );
-                            mysqli_stmt_bind_param($insertItem, "iiid", $cartId, $productId, $qty, $price);
-                            mysqli_stmt_execute($insertItem);
-                            mysqli_stmt_close($insertItem);
+                            mysqli_stmt_bind_param($itemQuery, "ii", $cartId, $productId);
+                            mysqli_stmt_execute($itemQuery);
+                            $itemResult = mysqli_stmt_get_result($itemQuery);
+
+                            if ($itemRow = mysqli_fetch_assoc($itemResult)) {
+                                // Update quantity
+                                $newQty = $itemRow['quantity'] + $qty;
+                                $updateItem = mysqli_prepare($conn,
+                                    "UPDATE cartItems SET quantity = ? WHERE cartId = ? AND productId = ?"
+                                );
+                                mysqli_stmt_bind_param($updateItem, "iii", $newQty, $cartId, $productId);
+                                mysqli_stmt_execute($updateItem);
+                                mysqli_stmt_close($updateItem);
+                            } else {
+                                // Insert new item
+                                $insertItem = mysqli_prepare($conn,
+                                    "INSERT INTO cartItems (cartId, productId, quantity, price)
+                                    VALUES (?, ?, ?, ?)"
+                                );
+                                mysqli_stmt_bind_param($insertItem, "iiid", $cartId, $productId, $qty, $price);
+                                mysqli_stmt_execute($insertItem);
+                                mysqli_stmt_close($insertItem);
+                            }
+
+                            mysqli_stmt_close($itemQuery);
                         }
 
-                        mysqli_stmt_close($itemQuery);
+                        // Clear session cart
+                        unset($_SESSION['cart']);
                     }
 
-                    // Clear session cart
-                    unset($_SESSION['cart']);
+
+                    // Redirect to the originally requested page ($redirect_url)
+                    header("Location: " . $redirect_url);
+                    exit();
+
+                } else {
+                    $errorMessage = "Invalid account role. Please contact support.";
                 }
-
-
-                // Redirect to the originally requested page ($redirect_url)
-                header("Location: " . $redirect_url);
-                exit();
-
-            } else {
-                $errorMessage = "Invalid account role. Please contact support.";
             }
         } else {
             $errorMessage = "Invalid login credentials. Please try again.";

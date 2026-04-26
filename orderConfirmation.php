@@ -10,6 +10,30 @@
         exit();
     }
 
+
+    // STRIPE PAYMENT VERIFICATION & STATUS UPDATE ---
+    // If we have a payment_intent in the URL, the payment was successful
+    if (isset($_GET['payment_intent'])) {
+        // Update the order status to 'Pending'
+        $updateStatus = mysqli_prepare($conn, "UPDATE orders SET status = 'Pending' WHERE id = ? AND status = 'Awaiting Payment'");
+        mysqli_stmt_bind_param($updateStatus, "i", $orderId);
+        mysqli_stmt_execute($updateStatus);
+        mysqli_stmt_close($updateStatus);
+
+        // Clear the cart items since payment is confirmed
+        $stmt_clear = mysqli_prepare($conn, "
+            DELETE ci FROM cartItems ci 
+            JOIN cart c ON ci.cartId = c.id 
+            WHERE c.userId = ?
+        ");
+        $user_id = $_SESSION['id'];
+        mysqli_stmt_bind_param($stmt_clear, "i", $user_id);
+        mysqli_stmt_execute($stmt_clear);
+        mysqli_stmt_close($stmt_clear);
+    }
+    // --- END STATUS UPDATE ---
+
+
     // Fetch order details
     $sql_order = "SELECT o.*, c.firstName, c.lastName 
                 FROM orders o 

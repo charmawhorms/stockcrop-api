@@ -12,8 +12,21 @@ if (!$is_logged_in && !$has_session_cart) {
     exit();
 }
 
+// 2. Fetch the actual cart ID for this user
+$cartQuery = mysqli_query($conn, "SELECT id FROM cart WHERE userId = '$user_id' LIMIT 1");
+$cartData = mysqli_fetch_assoc($cartQuery);
+$cartId = $cartData['id'] ?? 0;
+
+// Check if any item in the cart requires a cash payment
+$checkSql = "SELECT p.id FROM cartitems ci 
+             JOIN products p ON ci.productId = p.id 
+             WHERE ci.cartId = '$cartId' AND p.payment_mode = 1 LIMIT 1";
+$checkRes = mysqli_query($conn, $checkSql);
+
+$mustUseCash = (mysqli_num_rows($checkRes) > 0);
+
 // --- HANDLE FORM SUBMISSION ---
-if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
+/*if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Input sanitization
     $fullName = mysqli_real_escape_string($conn, $_POST['fullName'] ?? '');
@@ -217,7 +230,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: checkout.php");
         exit();
     }
-}
+}*/
 
 // --- Display Form Logic (GET request) ---
 $customer_address = [
@@ -268,6 +281,9 @@ if ($user_id) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css"> 
     <link rel="icon" type="image/png" href="assets/icon.png">
+    <!--Stripe-->
+    <script src="https://js.stripe.com/v3/"></script>
+
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
     <style>
         .product-list-item img {
@@ -371,19 +387,38 @@ if ($user_id) {
                             <div class="card-header bg-light fw-bold">4. Payment Method</div>
                             <div class="card-body">
                                 <p class="fw-semibold">Select Payment Method:</p>
+                                
                                 <div class="form-check mb-3">
-                                    <input class="form-check-input" type="radio" name="paymentMethod" id="paymentCOD" value="COD" required onchange="togglePlaceOrderButton()">
+                                    <input class="form-check-input" type="radio" name="paymentMethod" id="paymentCOD" value="COD" required 
+                                        onchange="handlePaymentSelection('COD')" <?php echo $mustUseCash ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="paymentCOD">
                                         Cash on Delivery / Cash on Pickup
                                     </label>
                                     <small class="text-muted d-block ms-4">Pay in cash when your order is delivered or picked up.</small>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="paymentMethod" id="paymentOnline" value="Online" required disabled>
-                                    <label class="form-check-label text-muted" for="paymentOnline">
-                                        Credit/Debit Card (Coming Soon)
-                                    </label>
-                                </div>
+
+                                <?php if ($mustUseCash): ?>
+                                    <div class="alert alert-warning ms-4 small py-2">
+                                        <strong>Note:</strong> Some items in your cart are from farmers who only accept cash. 
+                                        Online payment is disabled for this order.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="form-check mb-4">
+                                        <input class="form-check-input" type="radio" name="paymentMethod" id="paymentOnline" value="Online" required 
+                                            onchange="handlePaymentSelection('Online')">
+                                        <label class="form-check-label" for="paymentOnline">
+                                            Credit/Debit Card
+                                        </label>
+                                        <small class="text-muted d-block ms-4">Pay securely now using your card.</small>
+                                    </div>
+
+                                    <div id="card-element-container" style="display:none; background-color: #f8f9fa; border-radius: 8px;" class="p-3 mb-4 border">
+                                        <label class="form-label fw-bold">Card Details</label>
+                                        <div id="payment-element">
+                                            </div>
+                                        <div id="payment-message" class="text-danger mt-2 small"></div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -571,6 +606,112 @@ if ($user_id) {
     
     // Attach the validation check to the form's input changes
     document.getElementById('shippingForm')?.addEventListener('input', togglePlaceOrderButton);
+
+    //Stripe
+    const stripe = Stripe('pk_test_51TOqa1I6mtrD5rnZ1m7wW0UKr17f89BfIHid6ny5Y7gXpWYfx2tq566mPa7KqGSOTCCi5QCt6qDxdeSJ8xH2BpEz00xWOhAYgy'); 
+
+    let elements;
+
+    initialize();
+
+    async function initialize() {
+        const paymentMessage = document.querySelector('#payment-message');
+        try {
+            // Note: If your create-payment-intent.php now requires an orderTotal,
+            // you might need to pass the subtotal here or adjust that PHP file 
+            // to use the Session cart instead.
+            const response = await fetch("create-payment-intent.php", {
+                method: "POST"
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error("Server Error: " + errorText);
+            }
+            
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+
+            elements = stripe.elements({ clientSecret: data.clientSecret });
+            const paymentElement = elements.create("payment");
+            paymentElement.mount("#payment-element");
+
+        } catch (err) {
+            paymentMessage.textContent = "Failed to load payment gateway: " + err.message;
+            console.error(err);
+        }
+    }
+
+    async function handlePaymentSelection(method) {
+        const cardContainer = document.getElementById('card-element-container');
+        const placeOrderBtn = document.getElementById('placeOrderBtn');
+
+        if (method === 'Online') {
+            // Show Stripe fields
+            cardContainer.style.display = 'block';
+            placeOrderBtn.innerHTML = '<span class="material-symbols-outlined align-middle me-1">payments</span> Pay & Place Order';
+        
+            // Load Stripe only if it hasn't been loaded yet
+            if (!elements) {
+                await initialize();
+            }
+        } else {
+            // Hide Stripe fields
+            cardContainer.style.display = 'none';
+            placeOrderBtn.innerHTML = '<span class="material-symbols-outlined align-middle me-1">lock</span> Place Order';
+        }
+
+        togglePlaceOrderButton();
+    }
+
+
+    /**
+     * Final Order Submission Logic
+     * Handles the branch between COD (standard submit) and Online (Stripe confirmPayment).
+     */
+    document.getElementById('shippingForm').addEventListener('submit', async (event) => {
+    event.preventDefault(); // Stop the page from refreshing for BOTH methods
+    
+    const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+    const btn = document.getElementById('placeOrderBtn');
+    btn.disabled = true;
+
+    // STEP 1: Save order to database via AJAX (Works for both COD and Online)
+    const formData = new FormData(event.target);
+    try {
+        const saveOrderResponse = await fetch("process_order_ajax.php", {
+            method: "POST",
+            body: formData
+        });
+        const orderData = await saveOrderResponse.json();
+
+        if (!orderData.success) {
+            throw new Error(orderData.message);
+        }
+
+        // STEP 2: Branch logic based on payment method
+        if (paymentMethod === 'COD') {
+            // It's cash! Redirect straight to confirmation
+            window.location.href = "orderConfirmation.php?orderId=" + orderData.orderId;
+        } else {
+            // It's Online! Proceed with Stripe
+            const { error } = await stripe.confirmPayment({
+                elements,
+                confirmParams: {
+                    return_url: "http://localhost/StockCrop/orderConfirmation.php?orderId=" + orderData.orderId, 
+                },
+            });
+
+            if (error) {
+                document.querySelector('#payment-message').textContent = error.message;
+                btn.disabled = false;
+            }
+        }
+    } catch (err) {
+        alert("Order Error: " + err.message);
+        btn.disabled = false;
+    }
+});
     </script>
 </body>
 </html>

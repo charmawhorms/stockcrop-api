@@ -103,7 +103,7 @@ if ($farmerId) {
 
 $newOrdersCount = count($newOrders);
 $newBidsCount = count($newBids);
-$totalNotifications = $newOrdersCount + $newBidsCount;
+$totalNotifications = $newOrdersCount + $newBidsCount + $unreadCount;
 ?>
 
 <!-- Google Icons -->
@@ -223,25 +223,36 @@ $totalNotifications = $newOrdersCount + $newBidsCount;
             type="button" id="notificationsDropdown" data-bs-toggle="dropdown" aria-expanded="false" 
             style="width: 42px; height: 42px;">
         <span class="material-icons-outlined text-success">notifications</span>
-        <?php if($unreadCount > 0): ?>
+        <?php if($totalNotifications > 0): ?>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                 <?= $unreadCount ?>
             </span>
         <?php endif; ?>
     </button>
 
-    <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="notificationsDropdown" style="min-width:280px; max-height:400px; overflow-y:auto;">
-        <?php if(empty($notifications)): ?>
-            <li class="dropdown-item text-muted">No new notifications</li>
-        <?php else: ?>
-            <?php foreach($notifications as $note): ?>
-                <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold' : '' ?>">
-                    <?= htmlspecialchars($note['message']) ?><br>
-                    <small class="text-muted"><?= date('M d, Y H:i', strtotime($note['created_at'])) ?></small>
-                </li>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </ul>
+    <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:300px;">
+    <?php if($newOrdersCount > 0): ?>
+        <li class="dropdown-header text-success fw-bold">New Orders</li>
+        <?php foreach($newOrders as $order): ?>
+            <li><a class="dropdown-item small" href="viewOrders.php">
+                📦 Order #<?= $order['orderId'] ?> from <?= $order['firstName'] ?>
+            </a></li>
+        <?php endforeach; ?>
+        <li><hr class="dropdown-divider"></li>
+    <?php endif; ?>
+
+    <li class="dropdown-header">Notifications</li>
+    <?php if(empty($notifications)): ?>
+        <li class="dropdown-item text-muted">No recent alerts</li>
+    <?php else: ?>
+        <?php foreach($notifications as $note): ?>
+            <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold' : '' ?>" style="white-space: normal;">
+                <?= htmlspecialchars($note['message']) ?><br>
+                <small class="text-muted"><?= date('M d, H:i', strtotime($note['created_at'])) ?></small>
+            </li>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</ul>
 </div>
 
         <!-- Logout Button -->

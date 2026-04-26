@@ -75,8 +75,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
 
         if ($errorMessage == '') {
             // Default values
-//if ($imagePath === null) $imagePath = '';
-//if ($minPrice === null) $minPrice = 0;
+if ($imagePath === null) $imagePath = '';
+if ($minPrice === null) $minPrice = 0;
 
 $stmt = mysqli_prepare($conn, "
     INSERT INTO products
@@ -229,6 +229,13 @@ if (mysqli_stmt_execute($stmt)) {
         <div class="form-check mb-3">
             <input type="checkbox" id="isAvailable" name="isAvailable" class="form-check-input" checked>
             <label for="isAvailable" class="form-check-label">Available for Sale</label>
+        </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="payment_mode" value="1" id="cashOnly">
+            <label class="form-check-label" for="cashOnly">
+                <strong>Cash Only:</strong> Check this if you do not have a bank account and need to be paid in cash.
+            </label>
         </div>
 
         <button type="submit" name="submit" class="btn btn-success">Add Product</button>
