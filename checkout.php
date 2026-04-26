@@ -608,7 +608,7 @@ if ($user_id) {
     document.getElementById('shippingForm')?.addEventListener('input', togglePlaceOrderButton);
 
     //Stripe
-    const stripe = Stripe('pk_test_51TOqa1I6mtrD5rnZ1m7wW0UKr17f89BfIHid6ny5Y7gXpWYfx2tq566mPa7KqGSOTCCi5QCt6qDxdeSJ8xH2BpEz00xWOhAYgy'); 
+    const stripe = Stripe('$stripe_publishable_key'); 
 
     let elements;
 
