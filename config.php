@@ -11,8 +11,8 @@
     $database   = "stockcrop";
 
     //Stripe API Keys
-    $stripe_secret_key = "key";
-    $stripe_publishable_key ="key";
+    $stripe_secret_key = "sk_test_51TOqa1I6mtrD5rnZHtTk8XK8GGyfj8bInAq5P5zIYvmoh1DqnYt7riliThGPxVeBCX71cqfu44RybuM3V5MFfOV700fRC1jTDX";
+    $stripe_publishable_key ="pk_test_51TOqa1I6mtrD5rnZ1m7wW0UKr17f89BfIHid6ny5Y7gXpWYfx2tq566mPa7KqGSOTCCi5QCt6qDxdeSJ8xH2BpEz00xWOhAYgy";
 
     //PHPMailer Credentials
     $php_Mailer_Username = "charmawhorms28@gmail.com";

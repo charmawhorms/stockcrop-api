@@ -3,7 +3,7 @@ require_once('stripe-php/init.php');
 session_start();
 include 'config.php';
 
-\Stripe\Stripe::setApiKey('key');
+\Stripe\Stripe::setApiKey('$stripe_secret_key');
 
 header('Content-Type: application/json');
 
