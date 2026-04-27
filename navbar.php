@@ -30,6 +30,25 @@
         $cart_count = array_sum($_SESSION['cart']); 
     }
 
+    $customerNotifications = [];
+    $customerUnreadCount = 0;
+    if (isset($_SESSION['id']) && $_SESSION['roleId'] == 3) {
+        $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS unreadCount FROM notifications WHERE userId = ? AND isRead = 0");
+        mysqli_stmt_bind_param($stmt, "i", $userId);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $row = mysqli_fetch_assoc($result);
+        $customerUnreadCount = $row['unreadCount'] ?? 0;
+        mysqli_stmt_close($stmt);
+
+        $stmt = mysqli_prepare($conn, "SELECT id, type, message, isRead, created_at FROM notifications WHERE userId = ? ORDER BY created_at DESC LIMIT 5");
+        mysqli_stmt_bind_param($stmt, "i", $userId);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $customerNotifications = mysqli_fetch_all($result, MYSQLI_ASSOC);
+        mysqli_stmt_close($stmt);
+    }
+
 
     // --- User Info Logic (for conditional display) ---
     $is_logged_in = isset($_SESSION['id']);
@@ -83,6 +102,41 @@
                         </span>
                     <?php endif; ?>
                 </a>
+
+                <?php if ($is_logged_in && $user_role_id == 3): ?>
+                    <div class="dropdown">
+                        <button class="btn position-relative d-flex align-items-center justify-content-center p-0 bg-white border rounded-circle shadow-sm" 
+                                type="button" id="customerNotificationDropdown" data-bs-toggle="dropdown" aria-expanded="false" 
+                                style="width: 42px; height: 42px;">
+                            <span class="material-symbols-outlined text-success">notifications</span>
+                            <?php if ($customerUnreadCount > 0): ?>
+                                <span id="customer-notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                    <?= $customerUnreadCount ?>
+                                </span>
+                            <?php endif; ?>
+                        </button>
+
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:320px; max-height:400px; overflow-y:auto;" id="customerNotificationsDropdownMenu">
+                            <?php if(empty($customerNotifications)): ?>
+                                <li class="dropdown-item text-muted text-center py-3">No notifications yet</li>
+                            <?php else: ?>
+                                <?php foreach($customerNotifications as $note): ?>
+                                    <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold bg-light' : '' ?>" style="white-space: normal; padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                                        <div style="display:flex; gap:8px;">
+                                            <span style="font-size:18px; flex-shrink:0;">
+                                                <?= $note['type'] === 'order' ? '📦' : '🔔' ?>
+                                            </span>
+                                            <div style="flex-grow:1;">
+                                                <?= htmlspecialchars($note['message']) ?><br>
+                                                <small class="text-muted"><?= date('M d, H:i', strtotime($note['created_at'])) ?></small>
+                                            </div>
+                                        </div>
+                                    </li>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
 
                 <?php if ($is_logged_in): ?>
                     <div class="dropdown">
@@ -247,7 +301,71 @@ document.addEventListener('DOMContentLoaded', () => {
         // Call fetchCartPanelContent() every time the offcanvas is opened
         offcanvasElement.addEventListener('show.bs.offcanvas', fetchCartPanelContent);
     }
+
+    const customerNotificationDropdown = document.getElementById('customerNotificationDropdown');
+    if (customerNotificationDropdown) {
+        customerNotificationDropdown.addEventListener('click', () => {
+            refreshCustomerNotifications();
+            fetch('markRead.php', { method: 'POST', body: new URLSearchParams({ userId: <?= $userId ?> }) })
+                .then(res => res.text())
+                .then(() => {
+                    const badge = document.getElementById('customer-notification-count');
+                    if (badge) badge.remove();
+                });
+        });
+
+        setInterval(() => {
+            fetch('fetchUnreadCount.php')
+                .then(res => res.json())
+                .then(data => {
+                    let badge = document.getElementById('customer-notification-count');
+                    if (data.unread > 0) {
+                        if (!badge) {
+                            badge = document.createElement('span');
+                            badge.id = 'customer-notification-count';
+                            badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger';
+                            customerNotificationDropdown.appendChild(badge);
+                        }
+                        badge.textContent = data.unread;
+                    } else if (badge) {
+                        badge.remove();
+                    }
+                });
+        }, 5000);
+    }
 });
+
+function refreshCustomerNotifications() {
+    const dropdownMenu = document.getElementById('customerNotificationsDropdownMenu');
+    if (!dropdownMenu) return;
+
+    fetch('refreshNotifications.php')
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) return;
+
+            let html = '<li class="dropdown-header fw-bold">Notifications</li>';
+            if (data.notifications && data.notifications.length > 0) {
+                data.notifications.forEach(note => {
+                    const isUnread = note.isRead == 0 ? 'fw-bold bg-light' : '';
+                    const icon = note.type === 'order' ? '📦' : '🔔';
+                    const created = new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    html += `<li class="dropdown-item ${isUnread}" style="white-space: normal; padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                                <div style="display:flex; gap:8px;">
+                                    <span style="font-size:18px; flex-shrink:0;">${icon}</span>
+                                    <div style="flex-grow:1;">
+                                        ${note.message}<br>
+                                        <small class="text-muted">${created}</small>
+                                    </div>
+                                </div>
+                            </li>`;
+                });
+            } else {
+                html += '<li class="dropdown-item text-muted text-center py-3">No notifications yet</li>';
+            }
+            dropdownMenu.innerHTML = html;
+        });
+}
 </script>
 
 <style>

@@ -12,7 +12,7 @@ if ($_SESSION['roleId'] != 2) {
 
 // Get farmerId
 $userId = $_SESSION['id'];
-$farmerQuery = mysqli_prepare($conn, "SELECT id, verification_status FROM farmers WHERE userId = ?");
+$farmerQuery = mysqli_prepare($conn, "SELECT id, farmerType, verification_status FROM farmers WHERE userId = ?");
 mysqli_stmt_bind_param($farmerQuery, "i", $userId);
 mysqli_stmt_execute($farmerQuery);
 $farmerResult = mysqli_stmt_get_result($farmerQuery);
@@ -24,15 +24,29 @@ if ($farmerResult && mysqli_num_rows($farmerResult) > 0) {
     die("Error: Farmer record not found.");
 }
 
-// After session and farmer data fetch
-if ($farmerRow['verification_status'] !== 'verified') {
-    $_SESSION['error'] = "Your account must be verified before you can list products.";
-    header("Location: farmerDashboard.php");
-    exit();
-}
-
 $successMessage = '';
 $errorMessage = '';
+$showAddForm = true;
+
+// Show a message if the farmer is not verified or if guest farmers reached the product limit.
+if ($farmerRow['verification_status'] !== 'verified') {
+    $errorMessage = "Your account must be verified before you can list products. Please check your email for the verification link or contact admin for approval.";
+    $showAddForm = false;
+}
+
+if ($farmerRow['farmerType'] === 'guest') {
+    $productCountQuery = mysqli_prepare($conn, "SELECT COUNT(*) as productCount FROM products WHERE farmerId = ?");
+    mysqli_stmt_bind_param($productCountQuery, "i", $farmerId);
+    mysqli_stmt_execute($productCountQuery);
+    $productCountResult = mysqli_stmt_get_result($productCountQuery);
+    $productCountRow = mysqli_fetch_assoc($productCountResult);
+    $productCount = $productCountRow['productCount'];
+
+    if ($productCount >= 5) {
+        $errorMessage = "Guest farmers can only list up to 5 products. Please contact support to upgrade your account.";
+        $showAddForm = false;
+    }
+}
 
 // Fetch categories
 $categories = [];
@@ -42,7 +56,7 @@ while ($row = mysqli_fetch_assoc($catQuery)) {
 }
 
 // Handle form submission
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
+if ($showAddForm && $_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $productName   = htmlspecialchars(trim($_POST["productName"]));
     $description   = htmlspecialchars(trim($_POST["description"]));
     $categoryId    = intval($_POST["category"]);
@@ -55,8 +69,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $allowBidding = isset($_POST['allowBidding']) ? intval($_POST['allowBidding']) : 0;
     $minPrice     = ($allowBidding === 1 && !empty($_POST['minPrice'])) ? floatval($_POST['minPrice']) : null;
 
-    // Validate min price if bidding is enabled
-    if ($allowBidding === 1 && ($minPrice === null || $minPrice <= 0)) {
+    // Payment mode - force cash only for guest farmers
+    $paymentMode = ($farmerRow['farmerType'] === 'guest') ? 1 : (isset($_POST['payment_mode']) ? 1 : 0);
+
+    // Restrict bidding for guest farmers
+    if ($farmerRow['farmerType'] === 'guest' && $allowBidding === 1) {
+        $errorMessage = "Guest farmers cannot enable bidding on their products.";
+    } elseif ($allowBidding === 1 && ($minPrice === null || $minPrice <= 0)) {
         $errorMessage = "Minimum price is required when bidding is enabled.";
     } else {
         // Handle image upload
@@ -80,13 +99,13 @@ if ($minPrice === null) $minPrice = 0;
 
 $stmt = mysqli_prepare($conn, "
     INSERT INTO products
-    (farmerId, categoryId, productName, description, price, unitOfSale, stockQuantity, imagePath, isAvailable, allowBidding, minPrice)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (farmerId, categoryId, productName, description, price, unitOfSale, stockQuantity, imagePath, isAvailable, allowBidding, minPrice, payment_mode)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ");
 
 mysqli_stmt_bind_param(
     $stmt,
-    "iissdsisiid", // 11 types
+    "iissdsisiidi", // 12 types
     $farmerId,
     $categoryId,
     $productName,
@@ -97,7 +116,8 @@ mysqli_stmt_bind_param(
     $imagePath,
     $isAvailable,
     $allowBidding,
-    $minPrice
+    $minPrice,
+    $paymentMode
 );
 
 if (mysqli_stmt_execute($stmt)) {
@@ -169,11 +189,17 @@ if (mysqli_stmt_execute($stmt)) {
         <div class="alert alert-danger"><?php echo $errorMessage; ?></div>
     <?php endif; ?>
 
-    <form action="addProduct.php" method="POST" enctype="multipart/form-data">
-        <div class="mb-3">
-            <label for="productName" class="form-label">Product Name:</label>
-            <input type="text" id="productName" name="productName" class="form-control" required>
+    <?php if (!$showAddForm): ?>
+        <div class="alert alert-warning">
+            <?= htmlspecialchars($errorMessage ?: 'You cannot add products at this time.') ?>
         </div>
+        <a href="farmerDashboard.php" class="btn btn-secondary">Return to Dashboard</a>
+    <?php else: ?>
+        <form action="addProduct.php" method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="productName" class="form-label">Product Name:</label>
+                <input type="text" id="productName" name="productName" class="form-control" required>
+            </div>
 
         <div class="mb-3">
             <label for="category" class="form-label">Category:</label>
@@ -199,10 +225,17 @@ if (mysqli_stmt_execute($stmt)) {
 
         <div class="mb-3">
             <label class="form-label">Accept Bid</label>
-            <select name="allowBidding" id="allowBidding" class="form-select">
-                <option value="0">No</option>
-                <option value="1">Yes</option>
-            </select>
+            <?php if ($farmerRow['farmerType'] === 'guest'): ?>
+                <select name="allowBidding" id="allowBidding" class="form-select" disabled>
+                    <option value="0">No (Not available for guest farmers)</option>
+                </select>
+                <small class="text-muted">Guest farmers cannot enable bidding. Upgrade your account to access this feature.</small>
+            <?php else: ?>
+                <select name="allowBidding" id="allowBidding" class="form-select">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            <?php endif; ?>
         </div>
 
         <div class="mb-3" id="minPriceWrapper" style="display: none;">
@@ -232,18 +265,32 @@ if (mysqli_stmt_execute($stmt)) {
         </div>
 
         <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" name="payment_mode" value="1" id="cashOnly">
-            <label class="form-check-label" for="cashOnly">
-                <strong>Cash Only:</strong> Check this if you do not have a bank account and need to be paid in cash.
-            </label>
+            <?php if ($farmerRow['farmerType'] === 'guest'): ?>
+                <input class="form-check-input" type="checkbox" name="payment_mode" value="1" id="cashOnly" checked disabled>
+                <label class="form-check-label" for="cashOnly">
+                    <strong>Cash Only:</strong> Required for guest farmers. You will be paid in cash upon delivery/pickup.
+                </label>
+                <small class="text-muted d-block">Guest farmers can only accept cash payments.</small>
+            <?php else: ?>
+                <input class="form-check-input" type="checkbox" name="payment_mode" value="1" id="cashOnly">
+                <label class="form-check-label" for="cashOnly">
+                    <strong>Cash Only:</strong> Check this if you do not have a bank account and need to be paid in cash.
+                </label>
+            <?php endif; ?>
         </div>
 
         <button type="submit" name="submit" class="btn btn-success">Add Product</button>
     </form>
+    <?php endif; ?>
 </div>
 
 <script>
-document.getElementById('generateDescriptionBtn').addEventListener('click', function() {
+const generateButton = document.getElementById('generateDescriptionBtn');
+if (generateButton) {
+    generateButton
+const generateButton = document.getElementById('generateDescriptionBtn');
+if (generateButton) {
+    generateButton.addEventListener('click', function() {
     const productName = document.getElementById('productName').value.trim();
     const categorySelect = document.getElementById('category');
     const selectedOption = categorySelect.options[categorySelect.selectedIndex];
@@ -282,17 +329,29 @@ document.getElementById('generateDescriptionBtn').addEventListener('click', func
     });
 });
 
-// Show/hide minPrice field based on allowBidding
-const allowBiddingSelect = document.getElementById('allowBidding');
-const minPriceWrapper = document.getElementById('minPriceWrapper');
-allowBiddingSelect.addEventListener('change', () => {
-    if (allowBiddingSelect.value === '1') {
-        minPriceWrapper.style.display = 'block';
-    } else {
-        minPriceWrapper.style.display = 'none';
-    }
-});
+if (allowBiddingSelect && minPriceWrapper) {
+    allowBiddingSelect.addEventListener('change', () => {
+        if (allowBiddingSelect.value === '1') {
+            minPriceWrapper.style.display = 'block';
+        } else {
+            minPriceWrapper.style.display = 'none';
+        }
+    });
+}         minPriceWrapper.style.display = 'block';
+        } else {
+            minPriceWrapper.style.display = 'none';
+        }
+    });
+}
 </script>
+
+<?php if (!$showAddForm && $errorMessage): ?>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        alert("<?= addslashes($errorMessage) ?>");
+    });
+</script>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

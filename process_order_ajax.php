@@ -105,6 +105,25 @@ try {
         $stmt_stock = mysqli_prepare($conn, $sql_stock);
         mysqli_stmt_bind_param($stmt_stock, "ii", $item['quantity'], $item['productId']);
         mysqli_stmt_execute($stmt_stock);
+
+        // Get farmer userId and create notification for the farmer
+        $sql_farmer = "SELECT userId FROM farmers WHERE id = ?";
+        $stmt_farmer = mysqli_prepare($conn, $sql_farmer);
+        mysqli_stmt_bind_param($stmt_farmer, "i", $item['farmerId']);
+        mysqli_stmt_execute($stmt_farmer);
+        $farmer_result = mysqli_stmt_get_result($stmt_farmer);
+        $farmer_row = mysqli_fetch_assoc($farmer_result);
+        mysqli_stmt_close($stmt_farmer);
+
+        if ($farmer_row) {
+            $farmer_user_id = $farmer_row['userId'];
+            $notification_message = "New order #$order_id for {$item['productName']} (Qty: {$item['quantity']})";
+            $sql_notif = "INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'order', ?, 0, NOW())";
+            $stmt_notif = mysqli_prepare($conn, $sql_notif);
+            mysqli_stmt_bind_param($stmt_notif, "is", $farmer_user_id, $notification_message);
+            mysqli_stmt_execute($stmt_notif);
+            mysqli_stmt_close($stmt_notif);
+        }
     }
 
     // ONLY clear cart if it's COD. 
@@ -114,6 +133,37 @@ try {
     }
 
     mysqli_commit($conn);
+
+    // Customer notification record
+    $customerMessage = "Your order #$order_id has been placed successfully and is now $order_status.";
+    $stmt_notif_cust = mysqli_prepare($conn, "INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'order', ?, 0, NOW())");
+    mysqli_stmt_bind_param($stmt_notif_cust, "is", $user_id, $customerMessage);
+    mysqli_stmt_execute($stmt_notif_cust);
+    mysqli_stmt_close($stmt_notif_cust);
+
+    // Send customer email alert
+    $customerEmail = $_SESSION['email'] ?? null;
+    if (!$customerEmail) {
+        $stmt_email = mysqli_prepare($conn, "SELECT email FROM users WHERE id = ?");
+        mysqli_stmt_bind_param($stmt_email, "i", $user_id);
+        mysqli_stmt_execute($stmt_email);
+        $result_email = mysqli_stmt_get_result($stmt_email);
+        $rowEmail = mysqli_fetch_assoc($result_email);
+        $customerEmail = $rowEmail['email'] ?? null;
+        mysqli_stmt_close($stmt_email);
+    }
+
+    if ($customerEmail) {
+        require_once 'notificationMailer.php';
+        $emailBody = "<div style='font-family: sans-serif; color: #333; line-height: 1.6;'>"
+            . "<h2 style='color: #2f8f3f;'>Order Confirmed</h2>"
+            . "<p>Hi " . htmlspecialchars($fullName) . ",</p>"
+            . "<p>Your order <strong>#$order_id</strong> has been placed successfully and is now <strong>$order_status</strong>.</p>"
+            . "<p>Thank you for shopping with StockCrop Jamaica. You can track your order status in your dashboard.</p>"
+            . "<br><p>Best regards,<br>StockCrop Jamaica Team</p></div>";
+        sendNotificationEmail($customerEmail, $fullName, "StockCrop Order #$order_id Confirmed", $emailBody);
+    }
+
     echo json_encode(['success' => true, 'orderId' => $order_id]);
     exit();
 

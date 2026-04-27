@@ -11,12 +11,12 @@
     }
 
     // --- Handle Batch Status Update Action ---
+    require_once 'notificationMailer.php';
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['batch_update_action'])) {
         $selectedOrders = $_POST['selected_orders'] ?? [];
         $newStatus = $_POST['new_batch_status'] ?? '';
         
         if (!empty($selectedOrders) && in_array($newStatus, ['Ready for Pickup', 'Shipped', 'Delivered', 'Cancelled'])) {
-            // Sanitize IDs for SQL
             $inClause = implode(',', array_map('intval', $selectedOrders));
             
             $updateQuery = "UPDATE orders SET status = ? WHERE id IN ($inClause)";
@@ -25,44 +25,35 @@
             
             if (mysqli_stmt_execute($stmt)) {
                 $updateMessage = count($selectedOrders) . " order(s) successfully updated to " . htmlspecialchars($newStatus) . ".";
-            
 
-                if (!empty($selectedOrders) && in_array($newStatus, ['Ready for Pickup', 'Shipped', 'Delivered', 'Cancelled'])) {
-        // Sanitize IDs for SQL
-        $inClause = implode(',', array_map('intval', $selectedOrders));
-        
-        $updateQuery = "UPDATE orders SET status = ? WHERE id IN ($inClause)";
-        $stmt = mysqli_prepare($conn, $updateQuery);
-        mysqli_stmt_bind_param($stmt, "s", $newStatus);
-        
-        if (mysqli_stmt_execute($stmt)) {
-            $updateMessage = count($selectedOrders) . " order(s) successfully updated to " . htmlspecialchars($newStatus) . ".";
+                $custQuery = "SELECT o.id AS orderId, u.id AS userId, u.email FROM orders o JOIN customers c ON o.customerId = c.id JOIN users u ON c.userId = u.id WHERE o.id IN ($inClause)";
+                $resultCust = mysqli_query($conn, $custQuery);
+                if ($resultCust) {
+                    while ($rowCust = mysqli_fetch_assoc($resultCust)) {
+                        $custUserId = $rowCust['userId'];
+                        $orderId = $rowCust['orderId'];
+                        $customerEmail = $rowCust['email'];
+                        $message = "Your order #$orderId status has been updated to '$newStatus'.";
 
-            // --- NOTIFICATION LOGIC ---
-            // Fetch unique customer IDs for the updated orders
-            $custQuery = "SELECT DISTINCT customerId, id FROM orders WHERE id IN ($inClause)";
-            $resultCust = mysqli_query($conn, $custQuery);
-            if ($resultCust) {
-                while ($rowCust = mysqli_fetch_assoc($resultCust)) {
-                    $custId = $rowCust['customerId'];
-                    $orderId = $rowCust['id'];
-                    $message = "Your order #$orderId status has been updated to '$newStatus'.";
-                    $stmtNotif = mysqli_prepare($conn, "INSERT INTO notifications (userId, type, message) VALUES (?, 'order', ?)");
-                    mysqli_stmt_bind_param($stmtNotif, "is", $custId, $message);
-                    mysqli_stmt_execute($stmtNotif);
-                    mysqli_stmt_close($stmtNotif);
+                        $stmtNotif = mysqli_prepare($conn, "INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'order', ?, 0, NOW())");
+                        mysqli_stmt_bind_param($stmtNotif, "is", $custUserId, $message);
+                        mysqli_stmt_execute($stmtNotif);
+                        mysqli_stmt_close($stmtNotif);
+
+                        if (!empty($customerEmail)) {
+                            $emailBody = "<div style='font-family: sans-serif; color: #333; line-height: 1.6;'>"
+                                . "<h2 style='color: #2f8f3f;'>Order Status Update</h2>"
+                                . "<p>Your order <strong>#$orderId</strong> status has been updated to <strong>$newStatus</strong>.</p>"
+                                . "<p>Thank you for shopping with StockCrop Jamaica.</p>"
+                                . "<br><p>Best regards,<br>StockCrop Jamaica Team</p></div>";
+                            sendNotificationEmail($customerEmail, 'Customer', "StockCrop Order #$orderId Status Updated", $emailBody);
+                        }
+                    }
                 }
-            }
-            
-        } else {
-            $updateError = "Database error during batch update.";
-        }
-        mysqli_stmt_close($stmt);
-    }
-
             } else {
                 $updateError = "Database error during batch update.";
             }
+            mysqli_stmt_close($stmt);
         } elseif (!empty($selectedOrders)) {
             $updateError = "Invalid status selected for batch update.";
         }

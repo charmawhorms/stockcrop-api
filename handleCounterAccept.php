@@ -16,7 +16,7 @@ $userId = $_SESSION['id'];
 
 // Get bid details
 $stmt = $conn->prepare("
-    SELECT b.*, p.price AS originalPrice
+    SELECT b.*, p.price AS originalPrice, p.productName
     FROM bids b
     JOIN products p ON b.productId = p.id
     WHERE b.id = ? AND b.userId = ?
@@ -87,10 +87,8 @@ $stmt->close();
 
 // Notify farmer
 $stmt = $conn->prepare("
-    INSERT INTO notifications (userId, userRole, type, message, isRead, created_at)
-    SELECT f.id, 'Bid Accepted',
-           'A customer accepted your counter offer.',
-           0, NOW()
+    INSERT INTO notifications (userId, type, message, isRead, created_at)
+    SELECT f.userId, 'bid', CONCAT('A customer accepted your counter offer on ', p.productName, '.'), 0, NOW()
     FROM bids b
     JOIN products p ON b.productId = p.id
     JOIN farmers f ON p.farmerId = f.id

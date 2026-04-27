@@ -103,6 +103,32 @@ if (!$insertStmt) {
 $insertStmt->bind_param("iiid", $productId, $userId, $quantity, $bidAmount);
 
 if ($insertStmt->execute()) {
+    $productInfoStmt = $conn->prepare(
+        "SELECT p.productName, f.userId AS farmerUserId FROM products p JOIN farmers f ON p.farmerId = f.id WHERE p.id = ?"
+    );
+    $productInfoStmt->bind_param("i", $productId);
+    $productInfoStmt->execute();
+    $productInfoResult = $productInfoStmt->get_result();
+    $productInfo = $productInfoResult->fetch_assoc();
+    $productInfoStmt->close();
+
+    if ($productInfo) {
+        $productName = $productInfo['productName'];
+        $farmerUserId = (int)$productInfo['farmerUserId'];
+
+        $farmerMsg = "New bid placed on {$productName}: $" . number_format($bidAmount, 2) . " for {$quantity} unit(s).";
+        $farmerNotif = $conn->prepare("INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'bid', ?, 0, NOW())");
+        $farmerNotif->bind_param("is", $farmerUserId, $farmerMsg);
+        $farmerNotif->execute();
+        $farmerNotif->close();
+
+        $customerMsg = "Your bid for {$productName} has been submitted successfully. The farmer will review it soon.";
+        $customerNotif = $conn->prepare("INSERT INTO notifications (userId, type, message, isRead, created_at) VALUES (?, 'bid', ?, 0, NOW())");
+        $customerNotif->bind_param("is", $userId, $customerMsg);
+        $customerNotif->execute();
+        $customerNotif->close();
+    }
+
     echo json_encode([
         'status' => 'success',
         'message' => 'Bid placed successfully!'

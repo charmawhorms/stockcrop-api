@@ -39,8 +39,10 @@ $stmt->close();
 
 // Fetch farmer info
 $farmerId = null;
+$farmerType = null;
+$verificationStatus = null;
 
-$stmt = mysqli_prepare($conn, "SELECT id, firstName, lastName FROM farmers WHERE userId = ?");
+$stmt = mysqli_prepare($conn, "SELECT id, firstName, lastName, farmerType, verification_status FROM farmers WHERE userId = ?");
 mysqli_stmt_bind_param($stmt, "i", $userId);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
@@ -49,33 +51,14 @@ mysqli_stmt_close($stmt);
 
 if ($farm_info) {
     $farmerId = $farm_info['id'];
+    $farmerType = $farm_info['farmerType'];
+    $verificationStatus = $farm_info['verification_status'];
 }
 
-$newOrders = $newBids = [];
+$newOrders = $newBidsCount = $newOrdersCount = [];
 
 if ($farmerId) {
-    // New orders
-    $stmt = mysqli_prepare($conn, "
-        SELECT DISTINCT 
-            o.id AS orderId, 
-            o.orderDate,
-            c.firstName, 
-            c.lastName
-        FROM order_items oi
-        JOIN orders o ON oi.orderId = o.id
-        JOIN customers c ON o.customerId = c.id
-        WHERE oi.farmerId = ? 
-        AND oi.status = 'Pending'
-        ORDER BY o.orderDate DESC
-        LIMIT 5
-    ");
-    mysqli_stmt_bind_param($stmt, "i", $farmerId);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-    $newOrders = mysqli_fetch_all($result, MYSQLI_ASSOC);
-    mysqli_stmt_close($stmt);
-
-    // New bids
+    // New bids (keeping for reference, but won't display separately)
     $stmt = mysqli_prepare($conn, "
         SELECT 
             b.id AS bidId,
@@ -101,9 +84,8 @@ if ($farmerId) {
     mysqli_stmt_close($stmt);
 }
 
-$newOrdersCount = count($newOrders);
 $newBidsCount = count($newBids);
-$totalNotifications = $newOrdersCount + $newBidsCount + $unreadCount;
+$totalNotifications = $unreadCount;
 ?>
 
 <!-- Google Icons -->
@@ -223,32 +205,30 @@ $totalNotifications = $newOrdersCount + $newBidsCount + $unreadCount;
             type="button" id="notificationsDropdown" data-bs-toggle="dropdown" aria-expanded="false" 
             style="width: 42px; height: 42px;">
         <span class="material-icons-outlined text-success">notifications</span>
-        <?php if($totalNotifications > 0): ?>
+        <?php if($unreadCount > 0): ?>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                 <?= $unreadCount ?>
             </span>
         <?php endif; ?>
     </button>
 
-    <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:300px;">
-    <?php if($newOrdersCount > 0): ?>
-        <li class="dropdown-header text-success fw-bold">New Orders</li>
-        <?php foreach($newOrders as $order): ?>
-            <li><a class="dropdown-item small" href="viewOrders.php">
-                📦 Order #<?= $order['orderId'] ?> from <?= $order['firstName'] ?>
-            </a></li>
-        <?php endforeach; ?>
-        <li><hr class="dropdown-divider"></li>
-    <?php endif; ?>
-
-    <li class="dropdown-header">Notifications</li>
+    <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:350px; max-height:400px; overflow-y:auto;" id="notificationsDropdownMenu">
+    <li class="dropdown-header fw-bold">Notifications</li>
     <?php if(empty($notifications)): ?>
-        <li class="dropdown-item text-muted">No recent alerts</li>
+        <li class="dropdown-item text-muted text-center py-3">No notifications yet</li>
     <?php else: ?>
         <?php foreach($notifications as $note): ?>
-            <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold' : '' ?>" style="white-space: normal;">
-                <?= htmlspecialchars($note['message']) ?><br>
-                <small class="text-muted"><?= date('M d, H:i', strtotime($note['created_at'])) ?></small>
+            <li class="dropdown-item <?= $note['isRead'] == 0 ? 'fw-bold bg-light' : '' ?>" style="white-space: normal; padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                <div style="display: flex; gap: 8px;">
+                    <span style="font-size: 18px; flex-shrink: 0;">
+                        <?= $note['type'] === 'order' ? '📦' : '🔔' ?>
+                    </span>
+                    <div style="flex-grow: 1;">
+                        <?= htmlspecialchars($note['message']) ?>
+                        <br>
+                        <small class="text-muted"><?= date('M d, H:i', strtotime($note['created_at'])) ?></small>
+                    </div>
+                </div>
             </li>
         <?php endforeach; ?>
     <?php endif; ?>
@@ -277,7 +257,7 @@ $totalNotifications = $newOrdersCount + $newBidsCount + $unreadCount;
     </a>
 
     <a href="addProduct.php" class="sidebar-link <?= basename($_SERVER['PHP_SELF']) == 'addProduct.php' ? 'active' : ''; ?>">
-        <span class="material-icons-outlined">add_circle_outline</span> Add Product
+        <span class="material-icons-outlined">add_circle</span> Add Product
     </a>
 
     <a href="viewOrders.php" class="sidebar-link <?= basename($_SERVER['PHP_SELF']) == 'viewOrders.php' ? 'active' : ''; ?>">
@@ -302,9 +282,67 @@ $totalNotifications = $newOrdersCount + $newBidsCount + $unreadCount;
         document.getElementById('sidebar').classList.toggle('show-sidebar');
     }
 
+    // Refresh notification dropdown content
+    function refreshNotifications() {
+        fetch('refreshNotifications.php')
+            .then(res => res.json())
+            .then(data => {
+                if(data.success){
+                    let html = '<li class="dropdown-header fw-bold">Notifications</li>';
+                    
+                    if(data.notifications && data.notifications.length > 0){
+                        data.notifications.forEach(note => {
+                            const isUnread = note.isRead == 0 ? 'fw-bold bg-light' : '';
+                            const icon = note.type === 'order' ? '📦' : '🔔';
+                            const created = new Date(note.created_at).toLocaleDateString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                            html += `<li class="dropdown-item ${isUnread}" style="white-space: normal; padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                                <div style="display: flex; gap: 8px;">
+                                    <span style="font-size: 18px; flex-shrink: 0;">${icon}</span>
+                                    <div style="flex-grow: 1;">
+                                        ${note.message}
+                                        <br>
+                                        <small class="text-muted">${created}</small>
+                                    </div>
+                                </div>
+                            </li>`;
+                        });
+                    } else {
+                        html += '<li class="dropdown-item text-muted text-center py-3">No notifications yet</li>';
+                    }
+                    
+                    document.getElementById('notificationsDropdownMenu').innerHTML = html;
+                }
+            });
+    }
+
     document.getElementById('notificationsDropdown').addEventListener('click', () => {
-    fetch('markRead.php', { method: 'POST', body: new URLSearchParams({ userId: <?= $userId ?> }) })
-        .then(res => res.text())
-        .then(console.log);
-});
+        refreshNotifications();
+        fetch('markRead.php', { method: 'POST', body: new URLSearchParams({ userId: <?= $userId ?> }) })
+            .then(res => res.text())
+            .then(console.log);
+    });
+
+// Poll for unread notifications every 5 seconds
+setInterval(() => {
+    fetch('fetchUnreadCount.php')
+        .then(res => res.json())
+        .then(data => {
+            const badge = document.querySelector('#notificationsDropdown .badge');
+            if(data.unread > 0){
+                if(!badge){
+                    // Create badge if it doesn't exist
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger';
+                    newBadge.textContent = data.unread;
+                    document.getElementById('notificationsDropdown').appendChild(newBadge);
+                } else {
+                    // Update existing badge
+                    badge.textContent = data.unread;
+                }
+            } else if(badge){
+                // Hide badge if no unread notifications
+                badge.remove();
+            }
+        });
+}, 5000);
 </script>

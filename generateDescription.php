@@ -1,4 +1,5 @@
 <?php
+include 'config.php';
 // Set the content type to JSON for the AJAX response
 header('Content-Type: application/json');
 
@@ -21,7 +22,7 @@ $category = trim($_POST['category']);
 // --- 2. Configuration & Prompt ---
 $model = 'gemini-2.5-flash';
 //Gemini API Key !!!
-$apiKey = '$apiKey'; 
+$apiKey = $google_api_key; 
 // NOTE: A more detailed prompt helps avoid safety blocks
 $prompt = "You are a professional, concise product catalog writer. Write a factual and objective 3-4 sentence (maximum 400 words) description for the item '$productName' in the fresh produce category '$category'. Focus only on the fresh quality, great taste, and local origin.";
 

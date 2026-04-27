@@ -42,7 +42,7 @@ if (!empty($parishFilter)) {
 }
 
 if ($verifiedFilter) {
-    $sql .= " AND f.verification_status = 'verified'";
+    $sql .= " AND f.farmerType = 'verified'";
 }
 
 $sql .= " ORDER BY 
@@ -77,14 +77,13 @@ while ($row = mysqli_fetch_assoc($result)) {
         'farmerName' => htmlspecialchars($row['firstName'] . ' ' . $row['lastName']),
         'parish' => htmlspecialchars($row['parish'] ?? 'N/A'),
         'categoryName' => htmlspecialchars($row['categoryName'] ?? 'General'),
-        'verification_status' => $row['verification_status']
+        'verification_status' => $row['verification_status'],
+        'farmerType' => $row['farmerType']
     ];
 }
 
 mysqli_stmt_close($stmt);
 ?>
-
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -224,7 +223,7 @@ mysqli_stmt_close($stmt);
                                 <p class="text-success fw-bold mb-1">$<?= number_format($product['price'], 2) ?> / <?= $product['unitOfSale'] ?></p>
                                 <small class="text-muted d-block mb-2">
                                     <?= $product['categoryName'] ?> | <?= $product['parish'] ?>
-                                    <?php if ($product['verification_status'] === 'verified'): ?>
+                                    <?php if ($product['verification_status'] === 'verified' && $product['farmerType'] === 'verified'): ?>
                                         <span class="material-symbols-outlined text-primary align-middle ms-1" 
                                             style="font-size: 16px;" 
                                             title="RADA Verified Farmer">verified</span>

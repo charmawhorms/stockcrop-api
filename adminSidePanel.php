@@ -11,8 +11,8 @@
     }
 
     // Fetch admin info
+    $userId = $_SESSION['id'];
     if (!isset($admin_info)) {
-        $userId = $_SESSION['id'];
         $stmt = mysqli_prepare($conn, "SELECT email FROM users WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $userId);
         mysqli_stmt_execute($stmt);
@@ -136,10 +136,22 @@
     <button class="navbar-toggler d-lg-none me-3" type="button" onclick="toggleSidebar()">
         <span class="navbar-toggler-icon"></span>
     </button>
-    <div class="fw-bold">
-        Welcome, <?php echo htmlspecialchars($admin_info['email']); ?>
+    <div class="d-flex align-items-center gap-3">
+        <div class="fw-bold">
+            Welcome, <?php echo htmlspecialchars($admin_info['email']); ?>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-outline-light btn-sm position-relative" type="button" id="adminNotificationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="material-icons-outlined text-success">notifications</span>
+                <span id="admin-notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:320px; max-height:400px; overflow-y:auto;" id="adminNotificationsDropdownMenu">
+                <li class="dropdown-header fw-bold">Notifications</li>
+                <li class="dropdown-item text-muted text-center py-3">Loading notifications...</li>
+            </ul>
+        </div>
+        <a href="logout.php" class="btn btn-logout">Logout</a>
     </div>
-    <a href="logout.php" class="btn btn-logout">Logout</a>
 </nav>
 
 <!-- Admin Sidebar -->
@@ -184,4 +196,56 @@
         const sidebar = document.getElementById('sidebar');
         sidebar.classList.toggle('show-sidebar');
     }
+
+    function updateAdminBadge(count) {
+        const badge = document.getElementById('admin-notification-count');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
+
+    function refreshAdminNotifications() {
+        const dropdownMenu = document.getElementById('adminNotificationsDropdownMenu');
+        if (!dropdownMenu) return;
+
+        fetch('refreshNotifications.php')
+            .then(response => response.json())
+            .then(data => {
+                let html = '<li class="dropdown-header fw-bold">Notifications</li>';
+                if (data.notifications && data.notifications.length > 0) {
+                    data.notifications.forEach(note => {
+                        html += `<li class="dropdown-item ${note.isRead == 0 ? 'fw-bold' : ''}">` +
+                            `${note.message}<br><small class="text-muted">${new Date(note.created_at).toLocaleString()}</small></li>`;
+                    });
+                } else {
+                    html += '<li class="dropdown-item text-muted text-center py-3">No notifications yet</li>';
+                }
+                dropdownMenu.innerHTML = html;
+            });
+    }
+
+    function refreshAdminUnreadCount() {
+        fetch('fetchUnreadCount.php')
+            .then(response => response.json())
+            .then(data => {
+                updateAdminBadge(data.unread || 0);
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const dropdown = document.getElementById('adminNotificationDropdown');
+        if (dropdown) {
+            dropdown.addEventListener('click', () => {
+                refreshAdminNotifications();
+                fetch('markRead.php', { method: 'POST', body: new URLSearchParams({ userId: <?= $userId ?> }) });
+            });
+        }
+
+        refreshAdminUnreadCount();
+        setInterval(refreshAdminUnreadCount, 5000);
+    });
 </script>

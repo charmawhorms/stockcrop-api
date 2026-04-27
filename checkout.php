@@ -608,7 +608,7 @@ if ($user_id) {
     document.getElementById('shippingForm')?.addEventListener('input', togglePlaceOrderButton);
 
     //Stripe
-    const stripe = Stripe('$stripe_publishable_key'); 
+    const stripe = Stripe('<?php echo $stripe_publishable_key; ?>'); 
 
     let elements;
 
